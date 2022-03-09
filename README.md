@@ -19,6 +19,8 @@ Older proposals were managed in documents. Moving forward, the proposals should 
 * [SBOM Policy](https://docs.google.com/document/d/1AoaSfJwo6XyAuFZCK4wc4bjiPajdCIEJ9lctS1a8A5Y/edit)
 * [YAML Signing and Verification](https://docs.google.com/document/d/17j9KsH8qKpYXBoJ2ScApgk_ru9G7FPZg4eZskBLAqSI/edit)
 * [Image Verification Updates](https://hackmd.io/eTx3DqhhTzmPCF9wzMcJpw?view)
+* [Generate existing](https://docs.google.com/document/d/1KHf19cV5o8fWWC78OBl3H1-OETRuzHciEEBTfRFfMUU/edit)
 
+## Rejects
 
 
