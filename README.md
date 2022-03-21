@@ -15,12 +15,12 @@ Older proposals were managed in documents. Moving forward, the proposals should 
 
 * [Internal Auto-Gen Rules](https://docs.google.com/document/d/1kEST03WoGC2mUIz-rGbZkhQxU2F6n_CbwAkzIlhRdns/edit#heading=h.k9m35w1krgjl)
 * [Apply Generate policies on existing resources](https://docs.google.com/document/d/1KHf19cV5o8fWWC78OBl3H1-OETRuzHciEEBTfRFfMUU/edit)
+* [Image Verification Updates](https://hackmd.io/eTx3DqhhTzmPCF9wzMcJpw?view)
 
 ## In Review
 
 * [Extending Pod Security Admission](https://docs.google.com/document/d/1hRpaFrhJTfSfky3_y92MDkDefCjBh0FV1rVR0pqiVgc/edit#heading=h.w89f8hxppkrl)
 * [YAML Signing and Verification](https://docs.google.com/document/d/17j9KsH8qKpYXBoJ2ScApgk_ru9G7FPZg4eZskBLAqSI/edit)
-* [Image Verification Updates](https://hackmd.io/eTx3DqhhTzmPCF9wzMcJpw?view)
 
 ## Rejected
 
