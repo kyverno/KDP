@@ -22,6 +22,8 @@ Older proposals were managed in documents. Moving forward, the proposals should 
 * [Extending Pod Security Admission](https://docs.google.com/document/d/1hRpaFrhJTfSfky3_y92MDkDefCjBh0FV1rVR0pqiVgc/edit#heading=h.w89f8hxppkrl)
 * [YAML Signing and Verification](https://docs.google.com/document/d/17j9KsH8qKpYXBoJ2ScApgk_ru9G7FPZg4eZskBLAqSI/edit)
 
+* [Store Kyverno policies in OCI registries](https://docs.google.com/document/d/15cqD4HPecI5Uv2u1Yfg0JCgWDVi2HLwGZPvTX_48W2E/edit?usp=sharing)
+
 ## Rejected
 
 * [SBOM Policy](https://docs.google.com/document/d/1AoaSfJwo6XyAuFZCK4wc4bjiPajdCIEJ9lctS1a8A5Y/edit)
