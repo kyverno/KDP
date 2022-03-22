@@ -1,4 +1,3 @@
-{%hackmd theme-dark %}
 # Kyverno Design Proposal - Image Verification Restructuring
 
 Created: Jan 30, 2022
