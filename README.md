@@ -9,3 +9,6 @@ New proposals should be submitted as a PR:
    https://github.com/kyverno/KDP/pulls
 
 
+# Tips
+
+To generate table of contents, visit this [link](https://ecotrust-canada.github.io/markdown-toc/).
