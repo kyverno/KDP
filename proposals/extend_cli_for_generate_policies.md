@@ -26,11 +26,11 @@ Prior to this proposal, only validate and mutate policies were covered by the ky
 
 ## Proposal
 
-When using a generate rule, the origin resource can be either an existing resource defined within Kubernetes, or a new resource defined in the rule itself. When the origin resource is a pre-existing resource the clone object is used. When the origin resource is a new resource defined within the manifest of the rule, the data object is used. Both rules are mutually exclusive, and only one will be specified in a rule. Both object requires a different approach for testing through CLI command.
+When using a generate rule, the origin resource can be either an existing resource defined within Kubernetes, or a new resource defined in the rule itself. When the origin resource is a pre-existing resource the clone object is used. When the origin resource is a new resource defined within the manifest of the rule, the data object is used. Both rules are mutually exclusive, and only one will be specified in a rule. Both objects require a different approach for testing through CLI command.
 
 ### Method to test data object
 
-The method is similar to testing mutate policies. User will provide the desired resource manifest file as generatedResource in results array of the test file. This manifest file will be compared with the Kyverno generated resource and accordingly the test will display the result as pass or fail.
+The method is similar to testing mutate policies. User will provide the desired resource manifest file as generatedResource in the results array of the test file. This manifest file will be compared with the Kyverno generated resource and accordingly the test will display the result as pass or fail.
 
 Additionally, like in the case of testing mutate policies, we provide the resource on which we want to perform mutation. For generate policies, the triggering resource should be provided on creation/updation of which our generation rule is applied.
 
@@ -119,7 +119,7 @@ data:
 
 ## Implementation details
 
-Most of the implementation is similar to testing mutate policies. The key difference is that generate rules require Generate-Request Controller.
+Most of the implementation is similar to testing mutate policies. The key difference is that generate rules require a Generate-Request Controller.
 
 ### Mock Generate-Request Controller
 
@@ -127,4 +127,4 @@ To process generate rules, we need a Generate-Request Controller. We can make a 
 
 ### Building the result
 
-We can use the same function used for testing mutate policies to compare user define resource and Kyverno generated resource and give it some generic name.
+We can use the same function used for testing mutate policies to compare user defined resource and Kyverno generated resource and give it some generic name.
