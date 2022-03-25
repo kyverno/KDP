@@ -193,7 +193,7 @@ spec:
 
 ```
 
-#### Example: convert tags to digests for all pods
+#### Example: require digests for all pods, and convert tags to digest if needed
 
 ```yaml=
 apiVersion : kyverno.io/v1
@@ -210,7 +210,8 @@ spec:
     imageVerify:
     - images:
       - "*"
-    - digest: true
+    - digestMutate: true
+      digestVerify: true
 ```
 
 #### Example: require all pod images are from a trusted registry and are signed using a public key
@@ -229,7 +230,8 @@ spec:
         - Pod
     imageVerify:
       default: deny
-      digest: true
+      digestMutate: true
+      digestVerify: true
       images:
         - "registry.company.com/*"
       attestors:
@@ -258,7 +260,8 @@ spec:
         - Pod
     imageVerify:
       default: deny
-      digest: true
+      digestMutate: true
+      digestVerify: true
       images:
         - "registry.company.com/*"
       attestors:
@@ -296,7 +299,7 @@ spec:
       - path: "{{ spec.tasks[*] }}"
     imageVerify:
       default: deny
-      digest: true
+      digestVerify: true
       images:
       - "registry.company.com/*"
       attestors:
@@ -320,7 +323,8 @@ spec:
         kinds:
         - Pod
     imageVerify:
-      digest: true
+      digestMutate: true
+      digestVerify: true
       images:
       - "*"
       attestors:
