@@ -22,7 +22,7 @@ Table of contents:
 
 Kyverno webhook controller runs as an admission controller in Kubernetes, and it mutates resources upon admission review. Such mutation is performed based on resources operations (CREATE/UPDATE/DELETE) via webhook.
 
-As of Release 1.6.1, Kyverno has growning supprot for mutating existing resources:
+As of Release 1.6.1, Kyverno has growning support for mutating existing resources:
 
 - Mutate target resource which is different from the trigger resource, [#2139](https://github.com/kyverno/kyverno/issues/2139), [#1722](https://github.com/kyverno/kyverno/issues/1722).
 - Mutate trigger resources based on policy update, [#1607](https://github.com/kyverno/kyverno/issues/1607).
@@ -45,9 +45,9 @@ To support mutate existing resources:
 
 ## Examples
 
-1. This exmaple adds the label `foo=bar` to deployment `staging/example-A` on configmap `staging/dictionary` update.
+1. This example adds the label `foo=bar` to deployment `staging/example-A` on configmap `staging/dictionary` update.
 
-```yaml=
+```yaml
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -84,7 +84,7 @@ spec:
               foo: bar
 ```
 
-2. This exmaple restarts the deployment `staging/example-A` by updating the timestamp annotation on secret update.
+2. This example restarts the deployment `staging/example-A` by updating the timestamp annotation on secret update.
 ```yaml=
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
@@ -115,7 +115,7 @@ spec:
               kyverno.io/since-last-update: "{{ time_since('', '{{ request.object.metadata.creationTimestamp }}', '') }}"
 ```
 
-3. This exmaple adds label `foo=bar` to both incoming and existing deployments on policy updates.
+3. This example adds label `foo=bar` to both incoming and existing deployments on policy updates.
 ```yaml=
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
@@ -140,7 +140,7 @@ spec:
               foo: bar
 ```
 
-4. This exmaple updates the threshold in the configmap upon pod creation.
+4. This example updates the threshold in the configmap upon pod creation.
 
 ```yaml=
 #WIP
@@ -206,8 +206,8 @@ Based on the above analysis, we will use the admission webhook to watch trigger 
 
 ### Apply Policies
 
-Kyverno will mutate target(existing) resources in the background, not through the webhook. Since the trigger resources are watched via admission webhook (all instances will be active in HA), we need to create an itermediate resource to store the change request, and reconcile it in the background to apply such policies, similarly to how the generate controller reconciles generate requests. Once an event is received in the admission webhook, Kyverno will block the request until it creates the change request to the cluster. In this way, Kyverno is able to recover from failures in case it crashes in between.
+Kyverno will mutate target(existing) resources in the background, not through the webhook. Since the trigger resources are watched via admission webhook (all instances will be active in HA), we need to create an intermediate resource to store the change request, and reconcile it in the background to apply such policies, similarly to how the generate controller reconciles generate requests. Once an event is received in the admission webhook, Kyverno will block the request until it creates the change request to the cluster. In this way, Kyverno is able to recover from failures in case it crashes in between.
 
 ### Mutate Existing Resources
 
-The dynamic client will be used to fetch and upadate the target resources.
+The dynamic client will be used to fetch and update the target resources.
