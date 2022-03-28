@@ -22,7 +22,7 @@ Table of contents:
 
 Kyverno webhook controller runs as an admission controller in Kubernetes, and it mutates resources upon admission review. Such mutation is performed based on resources operations (CREATE/UPDATE/DELETE) via webhook.
 
-As of Release 1.6.1, Kyverno has growning support for mutating existing resources:
+As of release 1.6.1, these are still the outstanding issues which Kyverno needs to support hence this proposal:
 
 - Mutate target resource which is different from the trigger resource, [#2139](https://github.com/kyverno/kyverno/issues/2139), [#1722](https://github.com/kyverno/kyverno/issues/1722).
 - Mutate trigger resources based on policy update, [#1607](https://github.com/kyverno/kyverno/issues/1607).
