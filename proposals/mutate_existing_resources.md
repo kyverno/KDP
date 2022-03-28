@@ -36,9 +36,10 @@ To support mutate existing resources:
 
 - `spec.rules.match` will be used to identify operations on the trigger resources
     - To *"mutate trigger resources based on policy update"*, the syntax is slightly different in order to simplify policy definition, see example 3 below.
-- A new attribute `spec.rules.mutate.targets` will be introduced to specify a list of target resources to be mutated
-- Kyverno will fetch and mutate the existing resources once the trigger resource changes, the user needs to grant Kyverno permissions to operate on target resources
+- A new attribute `spec.rules.mutate.targets` will be introduced to specify a list of target resources to be mutated.
+- Kyverno will fetch and mutate the existing resources once the trigger resource changes, the user needs to grant Kyverno permissions to operate on target resources.
 - The patches will be added as an annotation to existing resources.
+- CLI support with the apply command, similar to background generation, to allow users to understand the impact such a policy may have on existing resources.
 
 
 
