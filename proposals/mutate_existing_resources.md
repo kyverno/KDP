@@ -86,7 +86,7 @@ spec:
 ```
 
 2. This example restarts the deployment `staging/example-A` by updating the timestamp annotation on secret update.
-```yaml=
+```yaml
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -116,8 +116,8 @@ spec:
               kyverno.io/since-last-update: "{{ time_since('', '{{ request.object.metadata.creationTimestamp }}', '') }}"
 ```
 
-3. This example adds label `foo=bar` to both incoming and existing deployments on policy updates.
-```yaml=
+3. This example adds label `foo=bar` to both incoming and existing deployments on policy updates with `mutateExisting=true`.
+```yaml
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -141,9 +141,11 @@ spec:
               foo: bar
 ```
 
+Setting `mutateExisting=false` will mutate existing resources but not incoming resources. The default value of `mutateExisting` is set to null.
+
 4. This example updates the threshold in the configmap upon pod creation.
 
-```yaml=
+```yaml
 #WIP
 
 apiVersion: kyverno.io/v1
