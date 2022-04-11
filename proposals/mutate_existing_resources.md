@@ -34,8 +34,9 @@ As of release 1.6.1, these are still the outstanding issues which Kyverno needs 
 
 To support mutate existing resources:
 
-- `spec.rules.match` will be used to identify operations on the trigger resources
-    - To *"mutate trigger resources based on policy update"*, the syntax is slightly different in order to simplify policy definition, see example 3 below.
+- `spec.rules.match` is required in such rules to identify:
+  - the *trigger* resource if the *target* is different. i.e., Example 1.
+  - the *target* resource to be mutated on policy updates, i.e, Example 3.
 - A new attribute `spec.rules.mutate.targets` will be introduced to specify a list of target resources to be mutated.
 - Kyverno will fetch and mutate the existing resources once the trigger resource changes, the user needs to grant Kyverno permissions to operate on target resources.
 - The patches will be added as an annotation to existing resources.
@@ -57,13 +58,19 @@ spec:
   rules:
     - name: "..."
       match:
-        resources:
-          kinds:
-          - ConfigMap
-          names:
-          - dictionary
-          namespaces:
-          - staging
+        any:
+        - resources:
+            kinds:
+            - ConfigMap
+            names:
+            - dictionary
+            namespaces:
+            - staging
+      preconditions:
+        any:
+        - key: "{{ request.operation }}"
+          operator: Equals
+          value: UPDATE
       mutate:
         # specify target resources to be mutated
         # 
@@ -95,13 +102,14 @@ spec:
   rules:
     - name: "..."
       match:
-        resources:
-          kinds:
-          - Secret
-          names:
-          - certificate-store
-          namespaces:
-          - staging
+        any:
+        - resources:
+            kinds:
+            - Secret
+            names:
+            - certificate-store
+            namespaces:
+            - staging
       mutate:
         targets:
         - kinds:
@@ -126,9 +134,10 @@ spec:
   rules:
     - name: "..."
       match:
-        resources:
-          kinds:
-          - Deployment
+        any: 
+        - resources:
+            kinds:
+            - Deployment
       mutate:
         # mutateExisting is used to mutate the same 
         # resources as specified in the match block
@@ -141,7 +150,7 @@ spec:
               foo: bar
 ```
 
-Setting `mutateExisting=false` will mutate existing resources but not incoming resources. The default value of `mutateExisting` is set to null.
+Setting `mutateExisting=true` will mutate existing resources. Leaving it undefined or setting it to `false` will mutate the incoming resources only. The default value is set to `false`.
 
 4. This example updates the threshold in the configmap upon pod creation.
 
@@ -156,17 +165,18 @@ spec:
   rules:
     - name: "..."
       match:
-        resources:
-          any:
-          - kinds:
-            - Pod
-            namespaces:
-            - staging-A
-            - staging-B
-          - kinds:
-            - Namespace
-            namespaces:
-            - staging-*
+        any:
+        - resources:
+            any:
+            - kinds:
+              - Pod
+              namespaces:
+              - staging-A
+              - staging-B
+            - kinds:
+              - Namespace
+              namespaces:
+              - staging-*
       preconditions:
         any:
         - key: "{{request.operation}}"
