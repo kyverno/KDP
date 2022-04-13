@@ -40,7 +40,9 @@ To support mutate existing resources:
 - A new attribute `spec.rules.mutate.targets` will be introduced to specify a list of target resources to be mutated.
 - Kyverno will fetch and mutate the existing resources once the trigger resource changes, the user needs to grant Kyverno permissions to operate on target resources.
 - The patches will be added as an annotation to existing resources.
+- Generates events on existing resources that are mutated.
 - CLI support with the apply command, similar to background generation, to allow users to understand the impact such a policy may have on existing resources.
+- Publishes metric data corresponding to existing resources that are mutated.
 
 
 
