@@ -101,7 +101,7 @@ New fields for enforcing and image digest and globally requiring signatures are 
 The high-level structure would look something like this:
 
 
-```yaml=
+```yaml
 apiVersion : kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -146,26 +146,25 @@ spec:
       digestMutate: true
       
       # Match one or more image patterns
-      images: 
+      imageReferences: 
       - registry.io/org/*
         
       # Specify one or more attestors (keys, keyless, other) that 
       # must sign the image or attestions.
       # At least 1 attestor is required
       attestors:
-      - match:
-        # Count of attestors. Each entry can be
-        # a key, a keyless declaration, or a nested match declaration
-        # If not specified, all entries must match. If specified the
-        # entry must be between 0 and the size of the list. It 0 is 
-        # specified, no checks are performed. Validated signatures are
-        # made available in the Context for custom checks.
-        # optional
-        min: 1
-        entries: 
-        - key: "..."
+      - entries: 
+        # a static key entry
+        - staticKey: {}
+        # a keyless entry
         - keyless: {}
-        - match: {}
+        # a nested attestor set
+        - attestors: {}
+        # Optional count of attestors. If specified the
+        # entry must be between 0 and the size of the list. If 0 or nil is 
+        # specified, all entries must match. Validated signatures are
+        # made available in the Context for custom checks.
+        count: 1
         
       # Specify one or more attestation checks.
       # optional
@@ -195,7 +194,7 @@ spec:
 
 #### Example: require digests for all pods, and convert tags to digest if needed
 
-```yaml=
+```yaml
 apiVersion : kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -216,7 +215,7 @@ spec:
 
 #### Example: require all pod images are from a trusted registry and are signed using a public key
 
-```yaml=
+```yaml
 apiVersion : kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -235,18 +234,52 @@ spec:
       images:
         - "registry.company.com/*"
       attestors:
-      - match:
-        min: 1
-        entries:
-        - key: |-
-          -----BEGIN PUBLIC KEY-----
-          -----END PUBLIC KEY-----  
+      - entries:
+        - staticKey:
+            key: |-
+            -----BEGIN PUBLIC KEY-----
+            -----END PUBLIC KEY-----  
 
+```
+
+#### Example: require a keyless GitHub attestor
+
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: check-image-keyless
+  annotations:
+    pod-policies.kyverno.io/autogen-controllers: none
+spec:
+  validationFailureAction: enforce
+  background: false
+  webhookTimeoutSeconds: 30
+  failurePolicy: Fail  
+  rules:
+    - name: check-image-keyless
+      match:
+        resources:
+          kinds:
+            - Pod
+      verifyImages:
+      - imageReferences:
+        - "ghcr.io/demo/*"
+        attestors:
+        - entries:
+          - keyless:
+              subject: "https://github.com/demo/*"
+              issuer: "https://token.actions.githubusercontent.com"
+              additionalExtensions:
+                githubWorkflowTrigger: push
+                githubWorkflowSha: 73f9df28b6c67e3d4a4ffc4b75aaeed89be88b58
+                githubWorkflowName: cosign
+                githubWorkflowRepository: demo/workflows
 ```
 
 #### Example: require all pod images are from a trusted registry and are signed by 1 of 3 keys
 
-```yaml=
+```yaml
 apiVersion : kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -265,24 +298,25 @@ spec:
       images:
         - "registry.company.com/*"
       attestors:
-      - match:
-        min: 1
+      - count: 1
         entries:
-        - key: |-
-          -----BEGIN PUBLIC KEY-----
-          -----END PUBLIC KEY-----  
-        - key: |-
-          -----BEGIN PUBLIC KEY-----
-          -----END PUBLIC KEY-----  
-        - key: |-
-          -----BEGIN PUBLIC KEY-----
-          -----END PUBLIC KEY-----  
+        - staticKey:
+            key: |-
+            -----BEGIN PUBLIC KEY-----
+            -----END PUBLIC KEY-----  
+        - staticKey:
+            key: |-
+            -----BEGIN PUBLIC KEY-----
+            -----END PUBLIC KEY-----  
+        - staticKey:
+            key: |-
+            -----BEGIN PUBLIC KEY-----
+            -----END PUBLIC KEY-----  
 ```
-
 
 #### Example: require all Tekton task images are from a trusted registry and are signed using keyless
 
-```yaml=
+```yaml
 apiVersion : kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -294,10 +328,9 @@ spec:
       resources:
         kinds:
         - tekton.io/v1/Task
-    context:
-    - imagePaths:
-      - path: "{{ spec.tasks[*] }}"
     imageVerify:
+      imagePaths:
+      - path: "{{ spec.tasks[*] }}"
       default: deny
       digestVerify: true
       images:
@@ -305,12 +338,19 @@ spec:
       attestors:
       - match:
         entries:
-        - keyless: {}
+          - keyless:
+            subject: "https://github.com/JimBugwadia/demo-java-tomcat/.github/workflows/publish.yaml@refs/tags/*"
+            issuer: "https://token.actions.githubusercontent.com"
+            additionalExtensions:
+              githubWorkflowTrigger: push
+              githubWorkflowSha: 73f9df28b6c67e3d4a4ffc4b75aaeed89be88b58
+              githubWorkflowName: build-sign-attest
+              githubWorkflowRepository: JimBugwadia/demo-java-tomcat
 ```
 
 #### Example: require all pod images are have a Trivy image scan attestation with keyless signing
 
-```yaml=
+```yaml
 apiVersion : kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -330,7 +370,10 @@ spec:
       attestors:
       - match:
         entries:
-        - keyless: {}
+        - staticKey:
+            key: |-
+            -----BEGIN PUBLIC KEY-----
+            -----END PUBLIC KEY-----      
       attestions:
       - predicateType: https://trivy.aquasec.com/scan/v2
         conditions:
@@ -344,8 +387,22 @@ spec:
           - key: "{{ Results[].Vulnerabilities[?CVSS.redhat.V3Score > `8.0`][] | length(@) }}"
             operator: Equals
             value: 0
-
 ```
+
+### Limitations
+
+#### Attestions with different attestors
+
+The proposal allows declaring a list of attestors and attestions. This assumes that all attestations are provided by the same set of attestors. Although not very common, its possible that different attestors for the same image are verified by different attestors.
+
+With the current design, this can be handled using separate image verification declarations in the same policy rule, using separate rules, or using separate policies. Here are some additional thoughts for the future
+
+* To reduce the number of OCI lookups, the signed paylods returned for a digest can be cached during webhook execution.
+* The current design can be extended to allow `attestors` to be specified under an `attestion`. This would allow declaring common attestors, if any, and then attestors specific to attestions.
+* An alternate scheme would be to allow an `attestor` to be named, and then referenced by name within an `attestion`.
+
+We can revisit these topics based on usage patterns.
+
 ## Alternatives
 
 Here are some of the prior proposals which were used to evolve the currently proposed solutions:
