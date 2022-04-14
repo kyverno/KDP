@@ -14,11 +14,14 @@ PR: [#3456](https://github.com/kyverno/kyverno/pull/3456)
       - [Example: Add Network Policy](#example--add-network-policy)
     + [Method to test clone object](#method-to-test-clone-object)
       - [Example: Sync Secrets](#example--sync-secrets)
+    + [Namespaced Policies](#namespaced-policies)
+      - [Example: Policy Disruption Budget](#example--policy-disruption-budget)
   * [Implementation details](#implementation-details)
     + [Mock Generate-Request Controller](#mock-generate-request-controller)
     + [Building the result](#building-the-result)
 
 <small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
 
 ## Introduction
 
@@ -136,6 +139,57 @@ metadata:
 type: Opaque
 data:
   password: MWYyZDFlMmU2N2Rm
+```
+
+### Namespaced Policies
+
+In order to test namespaced policies, user have to explicitly mention the namespace of the policy in the test file. Additionally, the triggering resource should belong to the namespace for which the policy is configured.
+
+#### Example: Policy Disruption Budget
+
+Consider this namespaced policy -
+```yaml
+apiVersion: kyverno.io/v1
+kind: Policy
+metadata:
+  name: create-default-pdb
+  namespace: hello-world
+spec:
+  rules:
+  - name: create-default-pdb
+    match:
+      resources:
+        kinds:
+        - Deployment
+    generate:
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      name: "{{request.object.metadata.name}}-default-pdb"
+      namespace: "{{request.object.metadata.namespace}}"
+      data:
+        spec:
+          minAvailable: 1
+          selector:
+            matchLabels:
+              "{{request.object.metadata.labels}}"
+```
+
+The test file for this policy should explicitly mention the policy namespace.
+
+```yaml
+name: pdb-test
+policies:
+  - policy.yaml
+resources:
+  - resource.yaml
+results:
+  - policy: create-default-pdb
+    rule: create-default-pdb
+    resource: nginx-deployment
+    generatedResource: generatedResource.yaml
+    kind: Deployment
+    result: pass
+    namespace: hello-world
 ```
 
 ## Implementation details
