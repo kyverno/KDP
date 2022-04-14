@@ -397,7 +397,7 @@ The proposal allows declaring a list of attestors and attestions. This assumes t
 
 With the current design, this can be handled using separate image verification declarations in the same policy rule, using separate rules, or using separate policies. Here are some additional thoughts for the future
 
-* To reduce the number of OCI lookups, the signed paylods returned for a digest can be cached during webhook execution.
+* To reduce the number of OCI lookups, the signed payloads returned for a digest can be cached during webhook execution.
 * The current design can be extended to allow `attestors` to be specified under an `attestion`. This would allow declaring common attestors, if any, and then attestors specific to attestions.
 * An alternate scheme would be to allow an `attestor` to be named, and then referenced by name within an `attestion`.
 
