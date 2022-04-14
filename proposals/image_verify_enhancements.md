@@ -393,7 +393,7 @@ spec:
 
 #### Attestions with different attestors
 
-The proposal allows declaring a list of attestors and attestions. This assumes that all attestations are provided by the same set of attestors. Although not very common, its possible that different attestors for the same image are verified by different attestors.
+The proposal allows declaring a list of attestors and attestions. This assumes that all attestations are provided by the same set of attestors. Although not very common, its possible that different attestations on the same image are verified by different attestors. For example, a static key is used to sign the SBOM but a keyless attestion is used to sign the vulnerability scan report.
 
 With the current design, this can be handled using separate image verification declarations in the same policy rule, using separate rules, or using separate policies. Here are some additional thoughts for the future
 
