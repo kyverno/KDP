@@ -348,7 +348,7 @@ spec:
               githubWorkflowRepository: JimBugwadia/demo-java-tomcat
 ```
 
-#### Example: require all pod images are have a Trivy image scan attestation with keyless signing
+#### Example: require all pod images are have a Trivy image scan attestation with a static key
 
 ```yaml
 apiVersion : kyverno.io/v1
