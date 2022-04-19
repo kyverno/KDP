@@ -1,6 +1,9 @@
 # YAML Signing & Verification 
 
-authors: [Namanl2001](https://github.com/Namanl2001), [JimBugwadia](https://github.com/JimBugwadia)
+Name: YAML signing and verification \
+Start Date: 2021-12-25 \
+Authors: [Namanl2001](https://github.com/Namanl2001), [JimBugwadia](https://github.com/JimBugwadia)\
+Supersedes: N/A
 
 ## Overview
 
