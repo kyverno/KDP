@@ -17,11 +17,11 @@ Authors: [Sambhav Kothari](https://github.com/samj1912), [Jim Bugwadia](https://
     + [4. Combining attestation checks with mutation](#4-combining-attestation-checks-with-mutation)
   * [Requirements](#requirements)
   * [Proposal](#proposal)
-      - [Example: convert tags to digests for all pods](#example--convert-tags-to-digests-for-all-pods)
-      - [Example: require all pod images are from a trusted registry and are signed using a public key](#example--require-all-pod-images-are-from-a-trusted-registry-and-are-signed-using-a-public-key)
-      - [Example: require all pod images are from a trusted registry and are signed by 1 of 3 keys](#example--require-all-pod-images-are-from-a-trusted-registry-and-are-signed-by-1-of-3-keys)
-      - [Example: require all Tekton task images are from a trusted registry and are signed using keyless](#example--require-all-tekton-task-images-are-from-a-trusted-registry-and-are-signed-using-keyless)
-      - [Example: require all pod images are have a Trivy image scan attestation with keyless signing](#example--require-all-pod-images-are-have-a-trivy-image-scan-attestation-with-keyless-signing)
+      - [Example: convert tags to digests for all pods](#example-convert-tags-to-digests-for-all-pods)
+      - [Example: require all pod images are from a trusted registry and are signed using a public key](#example-require-all-pod-images-are-from-a-trusted-registry-and-are-signed-using-a-public-key)
+      - [Example: require all pod images are from a trusted registry and are signed by 1 of 3 keys](#example-require-all-pod-images-are-from-a-trusted-registry-and-are-signed-by-1-of-3-keys)
+      - [Example: require all Tekton task images are from a trusted registry and are signed using keyless](#example-require-all-tekton-task-images-are-from-a-trusted-registry-and-are-signed-using-keyless)
+      - [Example: require all pod images are have a Trivy image scan attestation with keyless signing](#example-require-all-pod-images-are-have-a-trivy-image-scan-attestation-with-keyless-signing)
   * [Alternatives](#alternatives)
     + [Alternate Proposal 1](#alternate-proposal-1)
       - [Mutate tags to digests](#mutate-tags-to-digests)
@@ -193,7 +193,7 @@ spec:
 
 ```
 
-#### Example: convert tags to digests for all pods
+#### Example: require digests for all pods, and convert tags to digest if needed
 
 ```yaml=
 apiVersion : kyverno.io/v1
@@ -210,7 +210,8 @@ spec:
     imageVerify:
     - images:
       - "*"
-    - digest: true
+    - digestMutate: true
+      digestVerify: true
 ```
 
 #### Example: require all pod images are from a trusted registry and are signed using a public key
@@ -229,7 +230,8 @@ spec:
         - Pod
     imageVerify:
       default: deny
-      digest: true
+      digestMutate: true
+      digestVerify: true
       images:
         - "registry.company.com/*"
       attestors:
@@ -258,7 +260,8 @@ spec:
         - Pod
     imageVerify:
       default: deny
-      digest: true
+      digestMutate: true
+      digestVerify: true
       images:
         - "registry.company.com/*"
       attestors:
@@ -296,7 +299,7 @@ spec:
       - path: "{{ spec.tasks[*] }}"
     imageVerify:
       default: deny
-      digest: true
+      digestVerify: true
       images:
       - "registry.company.com/*"
       attestors:
@@ -320,7 +323,8 @@ spec:
         kinds:
         - Pod
     imageVerify:
-      digest: true
+      digestMutate: true
+      digestVerify: true
       images:
       - "*"
       attestors:
