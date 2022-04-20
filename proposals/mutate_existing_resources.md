@@ -34,9 +34,7 @@ As of release 1.6.1, these are still the outstanding issues which Kyverno needs 
 
 To support mutate existing resources:
 
-- `spec.rules.match` is required in such rules to identify:
-  - the *trigger* resource if the *target* is different. i.e., Example 1.
-  - the *target* resource to be mutated on policy updates with `spec.rules.mutate.mutateExisting` configured, i.e, Example 3.
+- `spec.rules.match` is required in such rules to identify the *trigger* resource. i.e., Example 1.
 - A new attribute `spec.rules.mutate.targets` will be introduced to specify a list of target resources to be mutated.
 - Kyverno will fetch and mutate the existing resources once the trigger resource changes, the user needs to grant Kyverno permissions to operate on target resources.
 - The patches will be added as an annotation to existing resources.
@@ -49,7 +47,7 @@ To support mutate existing resources:
 
 ## Examples
 
-1. This example adds the label `foo=bar` to deployment `staging/example-A` on configmap `staging/dictionary` update.
+1. This example adds the label `foo=bar` to deployment `staging/test-deploy` on configmap `staging/dictionary` update.
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -75,26 +73,18 @@ spec:
           value: UPDATE
       mutate:
         # specify target resources to be mutated
-        # 
-        # if this tag is specificied, Kyverno will 
-        # automatically perform post mutation, there's 
-        # no need to enable this feature additionally
         targets:
-          # starts with GVK, can be extended to suppport
-          # labels, annotations, etc
-        - kinds:
-          - Deployment
-          names:
-          - example-A
-          namespaces:
-          - staging
+        - apiVersion: apps/v1
+          kind: Deployment
+          name: test-deploy
+          namespace: staging
         patchStrategicMerge:
           metadata:
             labels:
               foo: bar
 ```
 
-2. This example restarts the deployment `staging/example-A` by updating the timestamp annotation on secret update.
+2. This example restarts the deployment `staging/test-deploy` by updating the timestamp annotation on secret update.
 ```yaml
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
@@ -114,12 +104,10 @@ spec:
             - staging
       mutate:
         targets:
-        - kinds:
-          - Deployment
-          names:
-          - example-A
-          namespaces:
-          - staging
+        - apiVersion: apps/v1
+          kind: Deployment
+          name: test-deploy
+          namespace: staging
         patchStrategicMerge:
           metadata:
             annotations:
@@ -127,6 +115,7 @@ spec:
 ```
 
 3. This example adds label `foo=bar` to both incoming and existing deployments on policy updates with `mutateExisting=true`.
+
 ```yaml
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
@@ -141,67 +130,20 @@ spec:
             kinds:
             - Deployment
       mutate:
-        # mutateExisting is used to mutate the same 
-        # resources as specified in the match block
-        # the trigger resource is clusterpolicy/policy only
+        # mutateExisting controls whether to mutate existing resource ONLY
         mutateExisting: true
-        # targets:
+        targets:
+        - apiVersion: apps/v1
+          kind: Deployment
+          name: foo
+          namespace: "{{ request.operation.metadata.namespace }}"
         patchStrategicMerge:
           metadata:
             annotations:
               foo: bar
 ```
 
-Setting `mutateExisting=true` will mutate existing resources. Leaving it undefined or setting it to `false` will mutate the incoming resources only. The default value is set to `false`.
-
-4. This example updates the threshold in the configmap upon pod creation.
-
-```yaml
-#WIP
-
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
-metadata:
-  name: "..."
-spec:
-  rules:
-    - name: "..."
-      match:
-        any:
-        - resources:
-            any:
-            - kinds:
-              - Pod
-              namespaces:
-              - staging-A
-              - staging-B
-            - kinds:
-              - Namespace
-              namespaces:
-              - staging-*
-      preconditions:
-        any:
-        - key: "{{request.operation}}"
-          operator: Equals
-          value: CREATE
-      context:
-      - name: podCount
-        apiCall:
-          #urlPath: "/api/v1/namespaces/{{request.namespace}}/resourcequotas"
-          #jmesPath: "items | length(@)"   
-      mutate:
-        targets:
-        - kinds:
-          - ConfigMap
-          names:
-          - quota-threshold
-          namespaces:
-          - {{request.namespace}}
-        patchStrategicMerge:
-          data:
-            # threshold:
-```
-
+Setting `mutateExisting=true` will mutate existing resources ONLY. Leaving it undefined or setting it to `false` will mutate both incoming and existing resources. Mutated resources are selected by `spec.rules.mutate.targets`. The default value is set to `false`.
 
 ## Implementation
 
