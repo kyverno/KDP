@@ -14,7 +14,7 @@ PR: [#3619](https://github.com/kyverno/kyverno/pull/3619)
 
 ## Introduction
 
-Until now we use `request.operation` under `condition.key`, to filter a request, after this proposal we'll use a tag `requestTypes` in `match` or `exclude` block to match/exclude specific requests coming from admission review requests.
+Until now we use `request.operation` under `preconditions[]`, to filter a request, after this proposal we'll use a tag `requestTypes` in `match` or `exclude` block to match/exclude specific requests coming from admission review requests.
 
 ## Proposal
 
