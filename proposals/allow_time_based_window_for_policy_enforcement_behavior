@@ -1,5 +1,7 @@
 # Kyverno Design Proposal - Allow time-based window for policy enforcement behavior
 
+ISSUE : [#2233](https://github.com/kyverno/kyverno/issues/2233)
+
 Author: [Prateek Nandle](https://github.com/Prateeknandle)
 
 ## Contents
@@ -31,6 +33,8 @@ After this proposal the problem would be solved, a new tag would be added in the
 
 2. To support users with a report for active/inactive status of policies at present time.
 
+3. To support the same feature for the CLI `test` command, i.e. functionality to add a time window to inactive a policy.
+
 ## Example
 
 ```
@@ -40,9 +44,9 @@ metadata:
   name: require-labels
 spec:
   validationFailureAction: enforce
+  inactiveWindow: "00 17 * * * - 00 23 * * * "
   rules:
   - name: check-for-labels
-    inactiveWindow: "00 17 * * * - 00 23 * * * "
     match:
       any:
       - resources:
@@ -91,6 +95,8 @@ func TimeWindow() {
 }
 ```
 
+Validation - We need to validate the values that user will assign to `inactiveWindow`, the values should follow cron format and values should be in defined range.
+
 For cluster/nodes which based on different time zones, we’ll use the system's time and convert it to UTC time zone, then we’ll split it on space, ‘-’& ‘:’ according to the format.
 ```
 type Time struct {
@@ -127,6 +133,8 @@ func policyChange() {
     else if {.......}//Many cases are yet to be acknowledge
 }
 ```
+
+After adding the functionality we need to add Unit Tests and E2E Tests for the new added feature.
 
 ### Activity Status Report
 
