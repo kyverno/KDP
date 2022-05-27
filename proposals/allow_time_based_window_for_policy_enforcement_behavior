@@ -25,15 +25,15 @@ Currently, there is no such concept which will allow the user/ admin to make a t
 
 Changing manually is a tedious job, for eg, if an admin wants that no developer should change config file during a time slot, let's say weekend, then the admin needs to manually change the policy. This is tedious, because every weekend the admin needs to change the policy manually.
 
-After this proposal the problem would be solved, a new tag would be added in the policy named, so that within a specified time window the policy would be inactive and outside the window it’ll be active.
+After this proposal the problem would be solved, a new tag would be added in the policy named, so that within a specified time window the policy would be active and outside the window it’ll be inactive.
 
 ## Goals
 
-1. To add features for allowing users to define a time window where they want the particular policy to be inactive.
+1. To add features for allowing users to define a time window where they want the particular policy to be active.
 
 2. To support users with a report for active/inactive status of policies at present time.
 
-3. To support the same feature for the CLI `test` command, i.e. functionality to add a time window to inactive a policy.
+3. To support the same feature for the CLI `test` command, i.e. functionality to add a time window to specify active time for a policy.
 
 ## Example
 
@@ -44,7 +44,7 @@ metadata:
   name: require-labels
 spec:
   validationFailureAction: enforce
-  inactiveWindow: "00 17 * * * - 00 23 * * * "
+  activeWindow: "00 17 * * * - 00 23 * * * "
   rules:
   - name: check-for-labels
     match:
@@ -59,13 +59,13 @@ spec:
           labels:
             app.kubernetes.io/name: "?*"
 ```
-In the above policy we defined `inactiveWindow`, which contains the time-window for which policy would be inactive, i.e. when time window hits the current time according to UTC standards, `validationFailureAction` value will change to audit mode, which will change the policy behaviour.
+In the above policy we defined `activeWindow`, which contains the time-window for which policy would be active, i.e. when time window hits the current time according to UTC standards, `validationFailureAction` value will change to audit mode, which will change the policy behaviour.
 
 ## Implementation
 
 ### Change in Policy Behaviour
 
-Adding a new variable under spec(in policy), which will provide a way to declare/define time windows, naming `inactiveWindow`. Example : `inactiveWindow: "00 15 1 4 * - 00 18 2 4 *"`
+Adding a new variable under spec(in policy), which will provide a way to declare/define time windows, naming `activeWindow`. Example : `activeWindow: "00 15 1 4 * - 00 18 2 4 *"`
 The values mentioned above are in following order - Minutes Hours Day_of_month Month Day_of_week
 The string will split on spaces and ‘-’ and separate values will be assigned to StartWindow(starting time) and EndWindow(ending time).
 ```
@@ -84,8 +84,8 @@ type EndWindow struct {
     DayOfWeek  string
 }
 func TimeWindow() {
-    if spec.inactiveWindow != "" {
-        a := strings.FieldsFunc(spec.inactiveWindow, Split)
+    if spec.activeWindow != "" {
+        a := strings.FieldsFunc(spec.activeWindow, Split)
         b := StartWindow{a[0], a[1], a[2], a[3], a[4]}
         e := EndWindow{a[5], a[6], a[7], a[8], a[9]}
     }
@@ -95,7 +95,7 @@ func TimeWindow() {
 }
 ```
 
-Validation - We need to validate the values that user will assign to `inactiveWindow`, the values should follow cron format and values should be in defined range.
+Validation - We need to validate the values that user will assign to `activeWindow`, the values should follow cron format and values should be in defined range.
 
 For cluster/nodes which based on different time zones, we’ll use the system's time and convert it to UTC time zone, then we’ll split it on space, ‘-’& ‘:’ according to the format.
 ```
