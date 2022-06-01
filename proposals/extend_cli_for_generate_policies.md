@@ -29,7 +29,7 @@ Prior to this proposal, only validate and mutate policies were covered by the ky
 
 ## Proposal
 
-When using a generate rule, the origin resource can be either an existing resource defined within Kubernetes, or a new resource defined in the rule itself. When the origin resource is a pre-existing resource the clone object is used. When the origin resource is a new resource defined within the manifest of the rule, the data object is used. Both rules are mutually exclusive, and only one will be specified in a rule. Both objects require a different approach for testing through CLI command.
+When using a generate rule, the target resource can be either an existing resource defined within Kubernetes, or a new resource defined in the rule itself. When the target resource is a pre-existing resource the clone object is used. When the target resource is a new resource defined within the manifest of the rule, the data object is used. Both rules are mutually exclusive, and only one will be specified in a rule. Both objects require a different approach for testing through CLI command.
 
 ### API Design Changes
 
