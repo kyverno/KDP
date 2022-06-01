@@ -2,7 +2,7 @@
 
 This repository is used to manage Kyverno Design Proposals (KDPs). A design proposal is recommend for any significant change, including new features and enhancements.
 
-Older proposals were managed in documents. All new proposals should be submitted as a PR: https://github.com/kyverno/KDP/pulls
+Older proposals were managed in documents. All new proposals should be submitted as a PR: https://github.com/kyverno/KDP/pulls.
 
 
 ## Active Proposals
@@ -22,6 +22,8 @@ Older proposals were managed in documents. All new proposals should be submitted
 | [YAML Signing and Verification](https://docs.google.com/document/d/17j9KsH8qKpYXBoJ2ScApgk_ru9G7FPZg4eZskBLAqSI/edit) | In Review | |
 | [Store Kyverno policies in OCI registries](https://docs.google.com/document/d/15cqD4HPecI5Uv2u1Yfg0JCgWDVi2HLwGZPvTX_48W2E/edit?usp=sharing) | In Review | |
 
+
+To generate table of contents, visit this [link](https://ecotrust-canada.github.io/markdown-toc/).
 
 ## Inactive Proposals
 
