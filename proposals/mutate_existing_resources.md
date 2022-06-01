@@ -114,7 +114,7 @@ spec:
               kyverno.io/since-last-update: "{{ time_since('', '{{ request.object.metadata.creationTimestamp }}', '') }}"
 ```
 
-3. This example adds label `foo=bar` to both incoming and existing deployments on policy updates with `mutateExisting=true`.
+3. This example adds label `foo=bar` to both incoming and existing deployments on policy CREATE and UPDATE events with `mutateExistingOnPolicyUpdate=true`.
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -122,6 +122,7 @@ kind: ClusterPolicy
 metadata:
   name: "..."
 spec:
+  mutateExistingOnPolicyUpdate: true
   rules:
     - name: "..."
       match:
@@ -130,8 +131,6 @@ spec:
             kinds:
             - Deployment
       mutate:
-        # mutateExisting controls whether to mutate existing resource ONLY
-        mutateExisting: true
         targets:
         - apiVersion: apps/v1
           kind: Deployment
@@ -142,8 +141,6 @@ spec:
             annotations:
               foo: bar
 ```
-
-Setting `mutateExisting=true` will mutate existing resources ONLY. Leaving it undefined or setting it to `false` will mutate both incoming and existing resources. Mutated resources are selected by `spec.rules.mutate.targets`. The default value is set to `false`.
 
 ## Implementation
 
