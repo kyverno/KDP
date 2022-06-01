@@ -54,7 +54,7 @@ type TestResults struct {
 
 ### Method to test data object
 
-The method is similar to testing mutate policies. User will provide the desired resource manifest file as generatedResource in the results array of the test file. This manifest file will be compared with the Kyverno generated resource and accordingly the test will display the result as pass or fail.
+The method is similar to the testing for mutate policies. User will provide the desired resource manifest file as generatedResource in the results array of the test file. This manifest file will be compared with the Kyverno generated resource and accordingly the test will display the result as pass or fail.
 
 Additionally, like in the case of testing mutate policies, we provide the resource on which we want to perform mutation. For generate policies, the triggering resource should be provided on creation/update of which our generation rule is applied.
 
@@ -115,7 +115,7 @@ results:
     result: pass
 ```
 
-User should provide the pre-existing resource in the cloneSourceResource field of the results array. The cloneSourceResource.yaml for the above test file will look like this -
+User should provide the pre-existing resource in the `cloneSourceResource` field of the results array. The cloneSourceResource.yaml for the above test file will look like this -
 
 ```yaml
 apiVersion: v1
