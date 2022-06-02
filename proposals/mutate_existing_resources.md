@@ -165,3 +165,6 @@ Kyverno will mutate target(existing) resources in the background, not through th
 ### Mutate Existing Resources
 
 The dynamic client will be used to fetch and update the target resources.
+
+### Link to the Implementation PR
+https://github.com/kyverno/kyverno/pull/3669

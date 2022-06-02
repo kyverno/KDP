@@ -2,6 +2,7 @@
 [meta]: #meta
 - Name: (fill in the feature name: My Feature)
 - Start Date: (fill in today's date: YYYY-MM-DD)
+- Update data (optional): (fill in today's date: YYYY-MM-DD)
 - Author(s): (Github usernames)
 - Supersedes: (put "N/A" unless this replaces an existing KDP, then link to that KDP)
 
@@ -52,6 +53,8 @@ This provides a high level overview of the feature.
 This is the technical portion of the KDP, where you explain the design in sufficient detail.
 
 The section should return to the examples given in the previous section, and explain more fully how the detailed proposal makes those examples work.
+
+## Link to the Implementation PR
 
 # Migration (OPTIONAL)
 
