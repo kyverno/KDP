@@ -10,9 +10,9 @@ Author: [Prateek Pandey](https://github.com/prateekpandey14)
 
 ## Overview
 
-Generate-Policy Controller runs as an admission controller in Kubernetes watches
-GenerateRequest resource and applies generate rules to the resource.
-- GenerateRequest
+Generate-Policy Controller runs as an custom controller in Kubernetes watches
+UpdateRequest resource and applies generate rules to the resource.
+- UpdateRequest
 - Namespace(re-evaluates policy on namespace resource updates)
 
 Use of a generate rule is common when creating new resources from the point after
@@ -64,7 +64,7 @@ Creating a ClusterPolicy with a rule containing a match statement which matches 
 
 ## Proposal
 
-- Whenever trigger resource is created or updated, kyverno will  see the policy update, if it finds that policy has the `genExisting:true` field set , the new generate background scan handler will scan through all the namespaces with matching Kind and then trigger the current generate controller workflow to handle the generate request operations.
+- Whenever trigger resource is created or updated, kyverno will  see the policy update, if it finds that policy has the `genExisting:true` field set , the new generate background scan handler will scan through all the namespaces with matching Kind and then trigger the current generate controller workflow to handle the UpdateRequest operations.
 This approach seems to be more intuitive, helps and improves user experience as compared to earlier one.
 
 ```yaml
