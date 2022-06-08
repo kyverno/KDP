@@ -111,8 +111,6 @@ spec:
     rule: generaterulename
     resources:
     - resource01
-    # for generate rules which use the `clone` directive, they must specify the `cloneSourceResource` field.
-    cloneSourceResource: clonesource.yaml
     generatedResource: mypatchedresource.yaml
     kind: Kind
     result: myresult
@@ -200,6 +198,13 @@ spec:
           predicateResource: my-codereview.json
         values:
           foo: bar
+    - name: foreach-example-policy
+      rules:
+      - name: my-foreach-rule
+        values:
+          # variables within foreach loops will be stored as an array
+          foreach:
+            imageData: ["foo", "foo1"]
 ```
 
 ## Implementation
