@@ -111,6 +111,8 @@ spec:
     rule: generaterulename
     resources:
     - resource01
+    # for generate rules which use the `clone` directive, they must specify the `cloneSourceResource` field.
+    cloneSourceResource: clonesource.yaml
     generatedResource: mypatchedresource.yaml
     kind: Kind
     result: myresult
