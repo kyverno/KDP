@@ -208,14 +208,14 @@ The implementation will be done by an LFX mentee supervised by one or more Kyver
 
 The following issues should be either partially or completely addressed by the implemention.
 
-https://github.com/kyverno/kyverno/issues/2323
-https://github.com/kyverno/kyverno/issues/2315
-https://github.com/kyverno/kyverno/issues/2302
-https://github.com/kyverno/kyverno/issues/2857
-https://github.com/kyverno/kyverno/issues/2945
-https://github.com/kyverno/kyverno/issues/3271
-https://github.com/kyverno/kyverno/issues/4059
-https://github.com/kyverno/kyverno/issues/3915 (hopeful)
+* https://github.com/kyverno/kyverno/issues/2323
+* https://github.com/kyverno/kyverno/issues/2315
+* https://github.com/kyverno/kyverno/issues/2302
+* https://github.com/kyverno/kyverno/issues/2857
+* https://github.com/kyverno/kyverno/issues/2945
+* https://github.com/kyverno/kyverno/issues/3271
+* https://github.com/kyverno/kyverno/issues/4059
+* https://github.com/kyverno/kyverno/issues/3915 (hopeful)
 
 ### Link to the Implementation PR
 
@@ -227,7 +227,7 @@ This section should document breaks to public API and breaks in compatibility du
 
 ## Drawbacks
 
-There are no drawbacks to this proposal. It is a tablestakes feature and should have been implemented from day one.
+There are no drawbacks to this proposal. It is a table stakes feature and should have been implemented from day one.
 
 Risks are that it fails to be implemented at all or with sufficient quality that it cannot be used. A mitigation for this risk is to simply rely on the current capabilities and delay the release of this functionality.
 
