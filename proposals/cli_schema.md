@@ -96,7 +96,7 @@ spec:
     # with no metadata.namespace field implies the default namespace) (https://github.com/kyverno/kyverno/issues/4059)
     # (https://github.com/kyverno/kyverno/issues/4087)
     namespace: foonamespace # optional
-    kind: Kind # required
+    kind: Kind # required. Should support values in kind and GVK formats.
     result: myresult # required
   # mutate
   - policy: nextname
