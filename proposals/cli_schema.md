@@ -52,7 +52,9 @@ A new schema is being proposed for the `test` command which will provide the nec
 3. All file names must be checked for existence and validity.
 4. Objects in the `results[]` section should be validated against the rule type to determine if the necessary mandatory fields are present.
 5. Policies which are of type `Policy` must specify Namespace.
-6. There must not be duplicate names in resources 
+6. There must not be duplicate names in resources.
+7. Deprecated fields must be handled with warnings to users.
+8. Breaking changes should cause the apiVersion to be incremented.
 
 ```yaml
 apiVersion: cli.kyverno.io/v1beta1
