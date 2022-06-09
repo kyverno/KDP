@@ -70,11 +70,11 @@ spec:
     # support fully-qualified file paths (https://github.com/kyverno/kyverno/issues/2315)
     # wherever files are the value. Should be relative and absolute.
   - check-nvidia-gpu.yaml
-  - relative/path/to/next/policy.yaml
+  - ../relative/path/to/next/policy.yaml
   - /fully/qualified/path/to/next/policy.yaml
   resources:
   - resource.yaml
-  - relative/path/to/next/resource.yaml
+  - ../relative/path/to/next/resource.yaml
   - /fully/qualified/path/to/next/resource.yaml
   results:
   # results[] vary depending on the rule type being tested.
@@ -205,6 +205,13 @@ spec:
           # variables within foreach loops will be stored as an array
           foreach:
             imageData: ["foo", "foo1"]
+          # variables must also support multi-line block scalars like the below
+          # so they can be the source of data used in functions like `parse_json()` or `parse_yaml()`
+          myblockscalar: |
+            {
+              "team": "apple",
+              "organization": "banana"
+            }
 ```
 
 ## Implementation
