@@ -76,6 +76,18 @@ spec:
   - resource.yaml
   - ../relative/path/to/next/resource.yaml
   - /fully/qualified/path/to/next/resource.yaml
+  # a resource referenced with a dot as below means to check for another
+  # YAML document in this same test file. This could be changed so it's just an
+  # implicit check
+  - .
+    # a resource pool is an alternate concept which groups resources
+    # under a common name which can be accessed in the results[] section
+    # easier
+    my-resource-pool:
+    - resource.yaml
+    - ../relative/path/to/next/resource.yaml
+    - /fully/qualified/path/to/next/resource.yaml
+    - .
   results:
   # results[] vary depending on the rule type being tested.
   # validate
@@ -88,6 +100,26 @@ spec:
     - resource01
     - resource02
     - resource03
+    # resources should be specifiable with various naming formats like below
+    # GVK with namespace and resource name
+    - v1.Pod/nsfoo/mypod
+    # kind with namespace and resource name
+    - pod/nsfoo/mypod
+    # namespace and resource name
+    - nsfoo/mypod
+    # The below resources object is an alternative suggestion as how to reference
+    # resources based upon the resource pool defined above. It gives access to multiple
+    # resources in a flexible naming format and consistently so that providing a reference
+    # to a patched resource, for example, doesn't require specifying a file name.
+    resources:
+      # If just object is present, mode is create
+      # if both object and old is present, mode is update
+      # If only old is present, mode is delete
+      - object: my-resource-pool:apiversion/group/<namespace>/<name>
+        old: my-resource-pool:apiversion/group/<namespace>/<name>
+        patched: my-resource-pool:apiversion/group/<namespace>/<name>
+        cloneSource: my-resource-pool:apiversion/group/<namespace>/<name>
+        generated: my-resource-pool:apiversion/group/<namespace>/<name>
     # namespace should set the namespace name for the resource(s), if not present,
     # but otherwise should override the Namespace name if present. If the policy
     # being tested is a `Policy` (Namespaced), and if the namespace is not defined
@@ -212,6 +244,21 @@ spec:
               "team": "apple",
               "organization": "banana"
             }
+---
+# A resource may also exist in the same YAML file as the test manifest but
+# must be in its own document. It can be referenced in spec.resources[] either
+# explicitly (by specifying . in the list of items), or implicitly simply by existing.
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: demo
+  name: mypod
+spec:
+  automountServiceAccountToken: false
+  containers:
+  - name: hello-ko
+    image: ghcr.io/chipzoller/zulu:latest
 ```
 
 ## Implementation
