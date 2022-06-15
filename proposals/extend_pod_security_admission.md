@@ -5,8 +5,22 @@
 **Update**: June 15th, 2022
 **Abstract**: Using Kyverno to extend Pod Security Admission for Kubernetes.
 
-
 ## Contents
+
+  * [Contents](#contents)
+  * [Introduction](#introduction)
+  * [The Problem](#the-problem)
+  * [Proposed Solution](#proposed-solution)
+    + [Extend PSA via a new rule](#extend-psa-via-a-new-rule)
+    + [Exceptions for container security context](#exceptions-for-container-security-context)
+  * [Alternate Solutions Considered](#alternate-solutions-considered)
+    + [Extend Via Annotations](#extend-via-annotations)
+      - [Step 1. Enable additional policies for a namespace](#step-1-enable-additional-policies-for-a-namespace)
+      - [Step 2. Fine-grained Policy Control](#step-2-fine-grained-policy-control)
+  * [Next Steps](#next-steps)
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
 
 ## Introduction
 
