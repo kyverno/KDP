@@ -26,7 +26,10 @@
 
 [Pod Security admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) (PSA) is a built-in solution that applies different isolation levels of [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) for Pods. With the release of Kubernetes v1.23, PSA has entered beta and is enabled by default for 1.23+ clusters. 
 
-For more information on using PSA, see: [how PSA is used in a cluster](https://hackmd.io/C0prhSfdTbSv9d1ag7Ft9g).
+For more information on the proposal and how to use PSA, see: 
+
+* [KEP-2579: Pod Security Admission Control](https://github.com/kubernetes/enhancements/tree/master/keps/sig-auth/2579-psp-replacement)
+* [how PSA is used in a cluster](https://hackmd.io/C0prhSfdTbSv9d1ag7Ft9g).
 
 This document proposes a solution to extend PSA for finer-grained and flexible policy control.
 
@@ -36,13 +39,13 @@ Once PSA is enabled for namespaces, a configured level of Privileged, Baseline, 
 
 Users can choose to configure controls for select pods, but there is no validation or enforcement beyond meeting the requirements for the specified level. This means that if a namespace is baseline, any pod in that namespace can run with root user privileges. 
 
-Here is an example of this request: [Grant specific permissions for specific services](https://github.com/kubernetes/pod-security-admission/issues/1).
+Here is an example of this request: [Grant specific permissions for specific services](https://github.com/kubernetes/kubernetes/issues/108802).
 
 A solution would be to use microsegmentation, and isolate privileged pods to their own namespace. However, this introduces other complexities such as managing networking across pods across namespaces, managing permissions, etc.
 
 There are a few other considerations with PSA:
 
-* For users, violations are visible only for `warn` and `enforce` mode. With `audit` there's no trace that users can track unless the audit trace is enabled via the API-server.
+* For users, violations are visible only for `warn` and `enforce` mode. With `audit` there's no trace that users can track. Only someone that has access to the audit log (a control plane, protected feature) can.
 * The violations are only returned along with admission responses. And the warning messages are not easy to parse. It exposes a metrics endpoint to record [evaluations](https://github.com/kubernetes/pod-security-admission/blob/5219c1944103298680f1298e30155ce541af8a02/metrics/metrics.go#L43-L47).
 * No mutation ability.
 * No support for any other resources than Pods.
@@ -71,15 +74,17 @@ validationFailureAction: enforce
 rules:
   - name: validate-host-network
     match:
-      resources:
-        kinds:
-        - Pod
-      namespaces:
-       - test
-       - staging
+      any:
+      - resources:
+          kinds:
+          - Pod
+        namespaces:
+        - test
+        - staging
     exclude:
-      userInfo:
-         username: dummyuser
+      any:
+      - userInfo:
+          username: dummyuser
     validate:
       # this new type of rule only deals with PSS profiles
       # as we need to check if the value in the resource
@@ -104,15 +109,17 @@ validationFailureAction: enforce
 rules:
   - name: validate-host-network
     match:
-      resources:
-        kinds:
-        - Pod
-      namespaces:
-       - test
-       - staging
+      any:
+      - resources:
+          kinds:
+          - Pod
+        namespaces:
+        - test
+        - staging
     exclude:
-      userInfo:
-        username: dummyuser
+      any:
+      - userInfo:
+          username: dummyuser
     validate:
       # this new type of rule only deals with PSS profiles
       # as we need to check if the value in the resource
@@ -140,7 +147,7 @@ rules:
 
 Note that securityContext is configured at container level, not pod, as the matching image selects a specific container. The pod creation will be rejected if there's any violation found in its container. For pod level checks, other match criteria such as labels could be used.
 
-For a PolicyReport, `cpol.rules.validate.podSecurity.exclude.restrictedField` and `cpol.rules.validate.podSecurity.exclude.controlName` will be added to `polr.results.properties` to to audit the result.
+For a PolicyReport, `cpol.rules.validate.podSecurity.exclude.restrictedField` and `cpol.rules.validate.podSecurity.exclude.controlName` will be added to `polr.results.properties` to audit the result.
 
 ```yaml
 PolicyReport:
