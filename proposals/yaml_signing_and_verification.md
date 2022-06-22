@@ -50,22 +50,21 @@ spec:
 
 ```
 
-This declaration can then be verified by a Kyverno policy rule. This policy checks that all Kyverno policies are signed using a static key:
+This declaration can then be verified by a Kyverno policy rule. This policy checks that all pods are signed using a static key:
 
 ```
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
-  name: check-image
+  name: check-signatures
 spec:
   rules:
     - name: check-manifest
       match:
         resources:
           kinds:
-            - ClusterPolicy
-            - Policy
+            - Pod
       validate:
         manifests:
           - key: |-
@@ -80,7 +79,13 @@ This option of signing and verifying YAMLs is compatible with GitOps workflows a
 
 Although referred to as “YAML signing” this feature may be more accurately described as verifying the integrity of a Kubernetes manifest or resource declaration. YAML is used as a canonical format during signing and verification.
 
-Since Kubernetes resources are typically mutated during admission controls by native and 3rd party controllers, this feature needs to be able to allow certain mutations, and ignore them during serialization and verification.
+Since Kubernetes resources are typically mutated during admission controls by native and 3rd party controllers, this feature needs to be able to allow certain mutations, and ignore them during serialization and verification. 
+
+There are two approaches to handle the defaults and other mutations:
+
+1. Allow users to specify an `ignoreFields` in the policy: this is useful when there are few changes in the resource manifest, and and most changes are isolated to the `status` element. The drawback of this approach is that each field needs to be maintained in the policy.
+
+2. Use the API sever `dry-run` feature: this is useful when there are several changes made for defaults and by controllers to the resource. For example, a pod has several fields across its `spec` and `status` elements that get modified over its lifecycle. The drawback of this approach is that Kyverno needs permissions to create the resource via a `dry-run`. 
 
 ## Requirements
 
@@ -111,7 +116,16 @@ More information at: [https://github.com/stolostron/integrity-shield#integrity-s
 
 ## Signed OCI Bundle
 
-Kyverno policies can be stored in an OCI registry and signed as an OCI bundle. This is discussed in:  
+Kyverno policies can be stored in an OCI registry and signed as an OCI bundle. This feature is proposed in a separate KDP:
+
+    https://github.com/kyverno/KDP/pull/19
+
+Using an OCI registry, with Kyverno support for policy bundles, can enable a model where policies are applied in-memory and do not get exposed as resources in the cluster. This has security advantages.
+
+However, the OCI approach may not work well with GitOps-style workflows, where policies are managed centrally in a Git repository. Also, the YAML signing approach supports a broader set of use cases, beyond policy resources.
+
+The two approaches both seem like good features to support, and do not negate the need for each other.
+
 
 ## Integrate Integrity Shield library with Kyverno
 
@@ -135,15 +149,8 @@ This gist provides an implementation:
 4. There are a number of IBM and OpenShift references in the Stolstrom code which may not be applicable to Kyverno. For example, the default skip users.
 5. We want to avoid any disk operations in kyverno and keep it read only. But sigstore requires file-system access to process the encrypted message and signature added to the metadata, after signing a manifest. To deal with this in kyverno we are trying to perform all the required tasks in-memory.
 
-## Unresolved Questions
 
-1. Determine if dry-run is really needed, or if Kyverno should provide support to exclude attributes that can be changed both via an implicit list for Kubernetes resource or an explicit list in the policy declaration.
-2. Check if [Keyless](https://github.com/sigstore/cosign/blob/main/KEYLESS.md) signing and verification can be supported.
-
-## CRD Changes
-TODO
-
-# Design
+# Recommended Design
 
 ## Use a YAML subset as canonical format with k8s-manifest-sigstore
 
@@ -237,8 +244,6 @@ The following resource types are tested in both dry-run disabled mode(default) a
 - ServiceAccount
 - ClusterPolicy
 - Policy
-
-
 
 
 # References
