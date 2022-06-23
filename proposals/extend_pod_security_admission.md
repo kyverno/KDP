@@ -93,7 +93,7 @@ rules:
          profile: restricted
          # version must be a valid Kubernetes minor version,
          # or `latest`.
-         version: latest
+         version: v1.24
          exclude:
            # controlName is the Control defined in PSS
            # +required
