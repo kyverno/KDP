@@ -92,22 +92,15 @@ spec:
     # resources must support multiple resources, all of which
     # should be subject to the rest of the field values 
     # in this result. (https://github.com/kyverno/kyverno/issues/2857)
-    resources: # required
-    - resource01
-    - resource02
-    - resource03
-    # resources should be specifiable with various naming formats like below
-    # GVK with namespace and resource name
-    - v1.Pod/nsfoo/mypod
-    # kind with namespace and resource name
-    - pod/nsfoo/mypod
-    # namespace and resource name
-    - nsfoo/mypod
     # The below resources object is an alternative suggestion as how to reference
     # resources based upon the resource pool defined above. It gives access to multiple
     # resources in a flexible naming format and consistently so that providing a reference
     # to a patched resource, for example, doesn't require specifying a file name.
     resources:
+      # resources should be specifiable with various naming formats like below
+      # GVK with namespace and resource name: v1.Pod/nsfoo/mypod
+      # kind with namespace and resource name: pod/nsfoo/mypod
+      # namespace and resource name: nsfoo/mypod
       # If just object is present, mode is create
       # if both object and old is present, mode is update
       # If only old is present, mode is delete
