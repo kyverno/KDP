@@ -73,13 +73,6 @@ spec:
   - ../relative/path/to/next/policy.yaml
   - /fully/qualified/path/to/next/policy.yaml
   resources:
-  - resource.yaml
-  - ../relative/path/to/next/resource.yaml
-  - /fully/qualified/path/to/next/resource.yaml
-  # a resource referenced with a dot as below means to check for another
-  # YAML document in this same test file. This could be changed so it's just an
-  # implicit check
-  - .
     # a resource pool is an alternate concept which groups resources
     # under a common name which can be accessed in the results[] section
     # easier
@@ -87,6 +80,9 @@ spec:
     - resource.yaml
     - ../relative/path/to/next/resource.yaml
     - /fully/qualified/path/to/next/resource.yaml
+    # a resource referenced with a dot as below means to check for another
+    # YAML document in this same test file. This could be changed so it's just an
+    # implicit check
     - .
   results:
   # results[] vary depending on the rule type being tested.
