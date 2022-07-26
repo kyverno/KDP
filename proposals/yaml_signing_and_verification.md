@@ -178,7 +178,7 @@ The priority would be to investigate the 2nd option.Resources to test with
 Kyverno Policy CRDs (Kyverno `Policy` and `ClusterPolicy`) is extended to include
 - `validate.manifests` declaration, which includes
   - `attestors`
-    - `count`
+    - `count`  
       `entries`
       - `keys`
       - `certificates`
