@@ -67,10 +67,13 @@ spec:
             - Pod
       validate:
         manifests:
-          - key: |-
-            -----BEGIN PUBLIC KEY-----
-                      ...
-            -----END PUBLIC KEY-----
+          attestors:
+          - entries:
+            - keys:
+                publicKeys: |-
+                    -----BEGIN PUBLIC KEY-----
+                            ...
+                    -----END PUBLIC KEY-----
 ```
 
 This option of signing and verifying YAMLs is compatible with GitOps workflows and does not require an OCI registry to store signed resource definitions.
@@ -174,13 +177,18 @@ The priority would be to investigate the 2nd option.Resources to test with
 
 Kyverno Policy CRDs (Kyverno `Policy` and `ClusterPolicy`) is extended to include
 - `validate.manifests` declaration, which includes
-  - `keys`
-    - `key`
-    - `subject`
-  - `keyOperation`
+  - `attestors`
+    - `count`
+      `entries`
+      - `keys`
+      - `certificates`
+      - `keyless`
+      - `attestor`
+      - `annotations`
+      - `repository`
   - `ignoreFields` 
   - `skipUsers`
-  - `resourceBundleRef`
+  - `repository`
   - `annotationDomain`
   - `dryrun`
     - `namespace`
@@ -225,7 +233,7 @@ Kyverno can verify YAML manifest using k8s-manifest-sigstore directly. The verif
 
 
 
-We have conducted prototype with the latest code in Kyverno [main branch](https://github.com/kyverno/kyverno/commit/008b9ab48e4cb9d7749f0cc11510527f4cdaed4b) and verified the all the requirements documented here can be demonstrated with the [implementation](https://github.com/rurikudo/kyverno/tree/dev/yaml-signing-sigstore). 
+We have conducted prototype with the latest code in Kyverno [main branch](https://github.com/kyverno/kyverno/tree/612b7fdff2eb9dc72ac00a1d2d7a35e51fe1fe9d) and verified the all the requirements documented here can be demonstrated with the [implementation](https://github.com/rurikudo/kyverno/tree/dev/yaml-signing-sigstore). 
 
 
 The prototype code ==> https://github.com/rurikudo/kyverno/tree/dev/yaml-signing-sigstore
