@@ -253,6 +253,8 @@ The following resource types are tested in both dry-run disabled mode(default) a
 - ClusterPolicy
 - Policy
 
+We also have confirmed that `validate.manifests` rule can be used with the Kyverno CLI.
+Please check example [here](https://gist.github.com/rurikudo/3e5136c6ff150c019128e4bb799554d0).
 
 # References
 
