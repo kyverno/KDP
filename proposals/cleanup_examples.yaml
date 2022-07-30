@@ -1,0 +1,39 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: cleanup-examples
+spec:
+  rules:
+  # Cleans up Deployments and Statefulsets without the label `application` at midnight every day.
+  - name: cleanup-deploys-no-labels
+    match:
+      all:
+      - resources:
+          kinds:
+          - Deployment
+          - StatefulSet
+    exclude:
+      all:
+      - resources:
+          selector:
+            matchLabels:
+              application: "?*"
+    cleanup:
+      schedule: "0 0 * * *"
+      conditions: {}
+  # Cleans up any bare Pods every 5 days
+  - name: cleanup-deploys-no-labels
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+    cleanup:
+      schedule: "0 0 */5 * *"
+      conditions:
+        all:
+        - key: "{{ target.metadata.ownerReferences[] || `[]` }}"
+          operator: Equals
+          value: []
+  # Cleans up unbound PVs every week
+  - name: cleanup-unbound-pvs
