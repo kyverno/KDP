@@ -1,10 +1,9 @@
 # Meta
 [meta]: #meta
-- Name: (fill in the feature name: My Feature)
-- Start Date: (fill in today's date: YYYY-MM-DD)
-- Update data (optional): (fill in today's date: YYYY-MM-DD)
-- Author(s): (Github usernames)
-- Supersedes: (put "N/A" unless this replaces an existing KDP, then link to that KDP)
+- Name: Clean-up
+- Start Date: 2022-07-30
+- Author(s): chipzoller
+- Supersedes: N/A
 
 # Table of Contents
 [table-of-contents]: #table-of-contents
@@ -25,21 +24,24 @@
 # Overview
 [overview]: #overview
 
-One paragraph explanation of the feature.
+A clean-up ability of Kyverno allowing it to clean-up (delete) resources based upon certain criteria.
 
 # Definitions
 [definitions]: #definitions
 
-Make a list of the definitions that may be useful for those reviewing. Include phrases and words that Kyverno users or other interested parties may not be familiar with.
+- TTL: Time-to-live. The amount of time a resource may exist until it is cleaned up.
 
 # Motivation
 [motivation]: #motivation
 
-- Why should we do this?
-- What use cases does it support?
-- What is the expected outcome?
+The initial idea for this feature came from issue [3483](https://github.com/kyverno/kyverno/issues/3483) authored by user luisdavim.
+
+As long as there has been Kubernetes, there has been the inevitability that some resources--most especially those created directly by human users--are left derelict at some point without a good way to identify what and where they are. As Kubernetes continues to expand with its myriad of possible custom resources, this problem grows over time. The ultimate problems this poses are few: 1) Kubernetes' key-value store, which has fairly limited storage capacity, may become overwhelmed by resources which should be deleted; and 2) these resources, in the case of Pods, may result in consumption of excess resources driving up cost and reducing workload consolidation abilities. The solution to these problems is to identify the derelict resources and remove (i.e., delete) them.
 
 # Proposal
+
+In this proposal, Kyverno may function as a clean-up controller.
+
 
 This provides a high level overview of the feature.
 

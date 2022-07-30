@@ -35,5 +35,39 @@ spec:
         - key: "{{ target.metadata.ownerReferences[] || `[]` }}"
           operator: Equals
           value: []
-  # Cleans up unbound PVs every week
-  - name: cleanup-unbound-pvs
+  # Clean up all resources in the `foo` Namespace on the first of every month
+  - name: cleanup-everything-in-foo
+    match:
+      any:
+      - resources:
+          kinds:
+          - "*"
+          namespaces:
+          - foo
+    cleanup:
+      schedule: "0 * 1 * *"
+      conditions: {}
+  # Cleans up unbound PVCs every Sunday at 07:00
+  - name: cleanup-unbound-pvcs
+    match:
+      any:
+      - resources:
+          kinds:
+          - PersistentVolumeClaims
+    # context:
+    # - name: allpvcs
+    #   apiCall:
+    #     urlPath: "/api/v1/persistentvolumeclaims"
+    #     jmesPath: "items[?status.phase == 'Unbound'] || `[]`"
+    # preconditions:
+    #   all:
+    #   - key: "{{allpvcs}}"
+    #     operator: NotEquals
+    #     value: []
+    cleanup:
+      schedule: "0 7 * * 0"
+      conditions:
+        all:
+        - key: "{{target.status.phase}}"
+          operator: Equals
+          value: Unbound
