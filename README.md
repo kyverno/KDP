@@ -4,10 +4,9 @@ This repository is used to manage Kyverno Design Proposals (KDPs). A design prop
 
 Older proposals were managed in documents. All new proposals should be submitted as a PR: https://github.com/kyverno/KDP/pulls.
 
-
 ## Active Proposals
 
-| Name              | Status    | Release | 
+| Name              | Status    | Release |
 |------------------ | --------- | ------- |
 | [Foreach](https://docs.google.com/document/d/1oZpbhjp6fJMO8KOdtNcaGWTt3DJMioHapQeVRxf8vms/edit) | Implemented | 1.5 |
 | [Dynamic Webhooks](https://docs.google.com/document/d/1Y7_7ow4DgCLyCFQcFVz1vHclghazAKZyolIfprtNURc/edit) | Implemented | 1.5 |
@@ -22,19 +21,18 @@ Older proposals were managed in documents. All new proposals should be submitted
 | [YAML Signing and Verification](https://docs.google.com/document/d/17j9KsH8qKpYXBoJ2ScApgk_ru9G7FPZg4eZskBLAqSI/edit) | In Review | |
 | [Store Kyverno policies in OCI registries](https://docs.google.com/document/d/15cqD4HPecI5Uv2u1Yfg0JCgWDVi2HLwGZPvTX_48W2E/edit?usp=sharing) | In Review | |
 
-
 To generate table of contents, visit this [link](https://ecotrust-canada.github.io/markdown-toc/).
 
 ## Inactive Proposals
 
 | Name              | Status    |
-|------------------ | --------- | 
+|------------------ | --------- |
 | [SBOM Policy](https://docs.google.com/document/d/1AoaSfJwo6XyAuFZCK4wc4bjiPajdCIEJ9lctS1a8A5Y/edit) | Rejected |
-
 
 ## KDP Process
 
 ### Proposal
+
 To get a proposal into Kyverno, first, a KDP needs to be merged into the KDP repo. Once an KDP is merged, it's considered 'Accepted' and may be 'Implemented' to be included in the project. These steps will get an KDP to be considered:
 
 1. Fork the KDP repo: <https://github.com/kyverno/KDP>
@@ -45,8 +43,10 @@ To get a proposal into Kyverno, first, a KDP needs to be merged into the KDP rep
 6. Once the pull request is approved by two maintainers, the KDP will enter the 'Final Comment Period'.
 
 ### Final Comment Period
+
 When a pull request enters FCP the following will happen:
+
 1. A maintainer will apply the "Final Comment Period" label.
-1. The FCP will last 7 days. If there's unanimous agreement amongst the maintainers the FCP can close early.
-2. For voting, the binding votes are comprised of the maintainers. Acceptance requires majority of binding votes in favor. The absence of a vote from a party with a binding vote in the process is considered to be a vote in the affirmative. Non-binding votes are of course welcome.
-3. If no substantial new arguments or ideas are raised, the FCP will follow the outcome decided. If there are substantial new arguments, then the KDP will go back into development.
+2. The FCP will last 7 days. If there's unanimous agreement amongst the maintainers the FCP can close early.
+3. For voting, the binding votes are comprised of the maintainers. Acceptance requires majority of binding votes in favor. The absence of a vote from a party with a binding vote in the process is considered to be a vote in the affirmative. Non-binding votes are of course welcome.
+4. If no substantial new arguments or ideas are raised, the FCP will follow the outcome decided. If there are substantial new arguments, then the KDP will go back into development.
