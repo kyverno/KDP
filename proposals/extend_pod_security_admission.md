@@ -71,7 +71,7 @@ For example, if a user wants to apply Restricted PSS to the selected namespaces 
 ```yaml
 validationFailureAction: enforce
 rules:
-  - name: enforce-restricted-exclude-all-capabilities-nginx:1.2.3
+  - name: enforce-restricted-exclude-all-capabilities-nginx
     match:
       any:
         - resources:
@@ -106,7 +106,7 @@ If the user wants to specifically skip checking the custom "add" capabilities, `
 ```yaml
 validationFailureAction: enforce
 rules:
-  - name: enforce-restricted-exclude-capabilities-nginx:1.2.3
+  - name: enforce-restricted-exclude-capabilities-nginx
     match:
       any:
         - resources:
