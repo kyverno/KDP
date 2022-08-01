@@ -66,6 +66,17 @@ If the PSA is enabled with "enforce=restricted", there's not much left for this 
 
 The `podSecurity` validate rule applies configured [pod security profile level](https://kubernetes.io/docs/concepts/security/pod-security-admission/#pod-security-levels) to the selected namespaces. You can define exemptions from enforcement when creating pods. Exemptions can be configured via the `podSecurity.exclude` attribute.
 
+### Controls
+
+There are 2 types of pod security controls:
+
+- Some are declared at the [container level](#controls-at-the-container-level), selector: **container images**
+- And some others at the [pod spec level](#controls-at-the-pod-spec-level), selector: **labels**
+
+#### Controls at the container level
+
+We use **container images** as a selector for pod security controls that are declared at the container-level.
+
 For example, if a user wants to apply Restricted PSS to the selected namespaces "test" and "staging" but to skip checking the Control "Capabilities" for pods running "ghcr.io/example/nginx:1.2.3", the following policy does the job.
 
 ```yaml
@@ -144,7 +155,18 @@ rules:
               - "SETUID"
 ```
 
-Note that securityContext is configured at container level, not pod, as the matching image selects a specific container. The pod creation will be rejected if there's any violation found in its container. For [pod level checks](#fields-outside-container-object), other match criteria such as labels could be used.
+Note that securityContext is configured at container level, not pod, as the matching image selects a specific container. The pod creation will be rejected if there's any violation found in its container.
+
+#### Controls at the pod spec level
+
+We use **labels** as a selector for pod security controls that are declared at the pod spec level.
+
+e.g.:
+
+- Host Namespaces: `spec.hostNetwork,spec.hostPID,spec.hostIPC`
+- Sysctls: `spec.securityContext.sysctls[*].name`
+- volumes: `spec.volumes`
+- Non-root groups: `spec.securityContext.supplementalGroups[*], spec.securityContext.fsGroup`
 
 In the following example we apply restricted PSS to namespaces "test" and "staging" and check the Control "Volumes" while excluding pods with the label "env: prod".
 
@@ -202,15 +224,6 @@ results:
     scored: true
     status: fail
 ```
-
-### Fields outside container object
-
-- Host Namespaces: `spec.hostNetwork,spec.hostPID,spec.hostIPC`
-- Sysctls: `spec.securityContext.sysctls[*].name`
-- volumes: `spec.volumes`
-- Non-root groups: `spec.securityContext.supplementalGroups[*], spec.securityContext.fsGroup`
-
-For these pod level checks, we can use labels to select them.
 
 ## Alternate Solutions Considered
 
