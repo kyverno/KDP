@@ -17,11 +17,9 @@ Older proposals were managed in documents. All new proposals should be submitted
 | [Mutate on existing](https://github.com/kyverno/KDP/pull/4) | Implemented| 1.7 |
 | [CLI test generate policies ](https://github.com/kyverno/KDP/pull/6) | In Review  | 1.7 |
 | [Image Verification Refectoring](https://github.com/kyverno/KDP/blob/main/proposals/image_verify_enhancements.md) | Accepted | 1.7 |
-| [Extending Pod Security Admission](https://docs.google.com/document/d/1hRpaFrhJTfSfky3_y92MDkDefCjBh0FV1rVR0pqiVgc/edit#heading=h.w89f8hxppkrl) | In Review | |
-| [YAML Signing and Verification](https://docs.google.com/document/d/17j9KsH8qKpYXBoJ2ScApgk_ru9G7FPZg4eZskBLAqSI/edit) | In Review | |
+| [Extending Pod Security Admission](/proposals/extend_pod_security_admission.md) | Accepted | 1.8 |
+| [YAML Signing and Verification](/proposals/yaml_signing_and_verification.md) | Accepted | 1.8 |
 | [Store Kyverno policies in OCI registries](https://docs.google.com/document/d/15cqD4HPecI5Uv2u1Yfg0JCgWDVi2HLwGZPvTX_48W2E/edit?usp=sharing) | In Review | |
-
-To generate table of contents, visit this [link](https://ecotrust-canada.github.io/markdown-toc/).
 
 ## Inactive Proposals
 
