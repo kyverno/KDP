@@ -12,6 +12,9 @@
 - [The Problem](#the-problem)
 - [Proposed Solution](#proposed-solution)
   - [Extend PSA via a new rule](#extend-psa-via-a-new-rule)
+  - [Controls](#controls)
+    - [Container level](#controls-at-the-container-level)
+    - [Pod spec level](#controls-at-the-pod-spec-level)
   - [Exceptions for container security context](#exceptions-for-container-security-context)
 - [Alternate Solutions Considered](#alternate-solutions-considered)
   - [Extend Via Annotations](#extend-via-annotations)
@@ -88,9 +91,9 @@ rules:
         - resources:
             kinds:
               - Pod
-          namespaces:
-            - test
-            - staging
+            namespaces:
+              - test
+              - staging
     exclude:
       any:
         - userInfo:
@@ -123,9 +126,9 @@ rules:
         - resources:
             kinds:
               - Pod
-          namespaces:
-            - test
-            - staging
+            namespaces:
+              - test
+              - staging
     exclude:
       any:
         - userInfo:
@@ -168,7 +171,7 @@ e.g.:
 - volumes: `spec.volumes`
 - Non-root groups: `spec.securityContext.supplementalGroups[*], spec.securityContext.fsGroup`
 
-In the following example we apply restricted PSS to namespaces "test" and "staging" and check the Control "Volumes" while excluding pods with the label "env: prod".
+In the following example we apply restricted PSS to namespaces "test" and "staging" and check the Control "Volumes" while excluding pods with the label "app: nginx".
 
 ```yaml
 validationFailureAction: enforce
@@ -179,9 +182,15 @@ rules:
         - resources:
             kinds:
               - Pod
-          namespaces:
-            - test
-            - staging
+            namespaces:
+              - test
+              - staging
+    exclude:
+      any:
+        - resources:
+            selector:
+              matchLabels:
+                app: nginx
     validate:
       # this new type of rule only deals with PSS profiles
       # as we need to check if the value in the resource
@@ -195,8 +204,6 @@ rules:
           # controlName is the Control defined in PSS
           # +required
           - controlName: Volumes
-            labels:
-              env: prod
 ```
 
 ### Policy Reports
