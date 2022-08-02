@@ -210,14 +210,14 @@ results:
       'validation error: The label `app.kubernetes.io/name` is required. 
       Rule check-for-labels failed at path
       /metadata/labels/app.kubernetes.io/name/'
-    policy: require-labels
+    policy: polr-ns-default
     resources:
       - apiVersion: v1
         kind: Pod
         name: nginx
         namespace: default
         uid: 13fcb726-5597-4fcd-a708-ce8b558bd484
-    rule: check-for-labels
+    rule: enforce-restricted-exclude-all-capabilities-add-nginx
     properties:
       controlName: Capabilities
       podSecurity: spec.containers[*].securityContext.capabilities.add
