@@ -187,7 +187,6 @@ Kyverno Policy CRDs (Kyverno `Policy` and `ClusterPolicy`) is extended to includ
       - `annotations`
       - `repository`
   - `ignoreFields` 
-  - `skipUsers`
   - `repository`
   - `annotationDomain`
   - `dryrun`
@@ -210,17 +209,14 @@ With this extension, `validate.manifests` declaration supports new features belo
 
 |  Property  |  Description | Required | Default |
 | ---- | ---- | ---- | --- | 
-|  keys               | list of public keys or signer's subjects   | yes |  |
-|  keyOperation       | logic operation for keys ('MustAll' or 'AtLeastOne')  | no | 'AtLeastOne' |
+|  attestors               | list of public keys or signer's subjects   | yes |  |
 |  ignoreFields       | list of fields in which mutation is allowed | no |  [] |
-|  skipUsers          | list of trusted users or service accounts  | no | [] |
-|  resourceBundleRef  | OCI path for resource bundle which includes the YAML manifest | no | '' | 
+|  repository  | OCI path for resource bundle which includes the YAML manifest | no | '' | 
 |  annotationDomain   | domain used for signature annotation | no | 'cosign.sigstore.dev' |
 |  dryrun             | configuration to enable dryrun | no | enabled = false | 
 
 
 Kyverno can verify YAML manifest using k8s-manifest-sigstore directly. The verifyManifest function of Kyverno verifies the YAML signature by the following steps. 
-- check skipUsers
 - compose ignoreFields configuration to be considered.
 - verify yaml signature by calling verify-resource function in k8s-manifest-sigstore iteratively per key
   - verify-resource function in k8s-manifest-sigstore takes yaml manifest, public key, and ignoreFields as inputs, and does the signature verification. 
