@@ -1,9 +1,9 @@
 # Extending Pod Security Admission
 
-**Authors**: Shuting Zhao (shuting@nirmata.com), Hyokil Kim (@ToLToL)
-**Date**: Dec 15th, 2021
-**Update**: August 2nd, 2022
-**Abstract**: Using Kyverno to extend Pod Security admission for Kubernetes.
+- **Authors**: Shuting Zhao (shuting@nirmata.com), Hyokil Kim (@ToLToL)
+- **Date**: Dec 15th, 2021
+- **Update**: August 2nd, 2022
+- **Abstract**: Using Kyverno to extend Pod Security admission for Kubernetes.
 
 ## Contents
 
