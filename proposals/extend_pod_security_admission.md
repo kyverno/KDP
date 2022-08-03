@@ -1,9 +1,9 @@
 # Extending Pod Security Admission
 
-**Author**: Shuting Zhao (shuting@nirmata.com)
+**Authors**: Shuting Zhao (shuting@nirmata.com), Hyokil Kim (@ToLToL)
 **Date**: Dec 15th, 2021
-**Update**: June 15th, 2022
-**Abstract**: Using Kyverno to extend Pod Security Admission for Kubernetes.
+**Update**: August 2nd, 2022
+**Abstract**: Using Kyverno to extend Pod Security admission for Kubernetes.
 
 ## Contents
 
@@ -11,7 +11,7 @@
 - [Introduction](#introduction)
 - [The Problem](#the-problem)
 - [Proposed Solution](#proposed-solution)
-  - [Extend PSA via a new rule](#extend-psa-via-a-new-rule)
+  - [Extend PSa via a new rule](#extend-psa-via-a-new-rule)
   - [Controls](#controls)
     - [Container level](#controls-at-the-container-level)
     - [Pod spec level](#controls-at-the-pod-spec-level)
@@ -26,26 +26,28 @@
 
 ## Introduction
 
-[Pod Security admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) (PSA) is a built-in solution that applies different isolation levels of [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) for Pods. With the release of Kubernetes v1.23, PSA has entered beta and is enabled by default for 1.23+ clusters.
+[Pod Security admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) (PSa) is a built-in solution that applies different isolation levels of [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) for Pods. With the release of Kubernetes v1.23, PSa has entered beta and is enabled by default for 1.23+ clusters.
 
-For more information on the proposal and how to use PSA, see:
+For more information on the proposal and how to use PSa, see:
 
 - [KEP-2579: Pod Security Admission Control](https://github.com/kubernetes/enhancements/tree/master/keps/sig-auth/2579-psp-replacement)
-- [how PSA is used in a cluster](https://hackmd.io/C0prhSfdTbSv9d1ag7Ft9g).
+- [how PSa is used in a cluster](https://hackmd.io/C0prhSfdTbSv9d1ag7Ft9g).
 
-This document proposes a solution to extend PSA for finer-grained and flexible policy control.
+This document proposes a solution to extend Pod Security admission for finer-grained and flexible policy control.
 
 ## The Problem
 
-Once PSA is enabled for namespaces, a configured level of Privileged, Baseline, or Restricted applies to all pods and workloads within the namespace. The level is configured as a label on the namespace. There is no option to select specific pods or control, for granular policies.
+Once PSa is enabled for namespaces, a configured level of Privileged, Baseline, or Restricted applies to all pods and workloads within the namespace. The level is configured as a label on the namespace. There is no option to select specific pods or control, for granular policies.
 
 Users can choose to configure controls for select pods, but there is no validation or enforcement beyond meeting the requirements for the specified level. This means that if a namespace is baseline, any pod in that namespace can run with root user privileges.
 
 Here is an example of this request: [Grant specific permissions for specific services](https://github.com/kubernetes/kubernetes/issues/108802).
 
-A solution would be to use microsegmentation, and isolate privileged pods to their own namespace. However, this introduces other complexities such as managing networking across pods across namespaces, managing permissions, etc.
+A solution would be to use namespace microsegmentation and isolate privileged pods to their own namespace. However, this is not always possible and introduces other complexities such as managing networking across pods across namespaces, managing permissions, etc.
 
-There are a few other considerations with PSA:
+The recommendation for users who want finer grained controls is to use an policy engine that provides admission controls, like Kyverno or OPA/Gatekeeper. However, its not always clear to users how the combination of PSa and a policy engine should work together.
+
+There are a few other considerations with PSa:
 
 - For users, violations are visible only for `warn` and `enforce` mode. With `audit` there's no trace that users can track. Only someone that has access to the audit log (a control plane, protected feature) can.
 - The violations are only returned along with admission responses. And the warning messages are not easy to parse. It exposes a metrics endpoint to record [evaluations](https://github.com/kubernetes/pod-security-admission/blob/5219c1944103298680f1298e30155ce541af8a02/metrics/metrics.go#L43-L47).
@@ -55,17 +57,17 @@ There are a few other considerations with PSA:
 
 ## Proposed Solution
 
-PSA is an in-tree solution for pod security compliance, and it seems best to enable users to leverage the built-in solution for pod security enforcement. Kyverno can be integrated with PSA to extend its ability and provide fine grained checks.
+PSa is an in-tree solution for pod security compliance, and its best for users to leverage the built-in solution for pod security enforcement. Kyverno can be integrated with PSa to complement PSa, and extend its ability by providing fine grained checks and other functions. 
 
-With this solution, Kyverno would reuse the in-tree pod security implementation and not require users to manage multiple Kyverno policies, one for each control.
+With this solution, Kyverno would reuse the in-tree pod security implementation and not require users to manage multiple policies, one for each control defined in the pod security standards.
 
-### Extend PSA via a new rule
+### Extend PSa via a new validation rule
 
 Kyverno can extend PSS profiles with a new validation rule, `validate.podSecurity`.
 
-The rule will contain a "profile" that is set to "restricted" by default, and a list of exclusions that the user wants to allow. When set to "restricted", Kyverno will apply both Baseline and Restricted pod security profiles and block on violations.
+The rule will contain a "profile" attribute that is set to "restricted" by default, and a list of exclusions that the user wants to allow. When set to "restricted", Kyverno will apply both Baseline and Restricted pod security profiles and report violations.
 
-If the PSA is enabled with "enforce=restricted", there's not much left for this Kyverno rule to do. Only if the PSA is in "enforce=baseline" or "enforce=privileged" mode, users can use the Kyverno rule for granular control.
+If the PSa is enabled with "enforce=restricted" across the cluster, there's not much left to do. However, this is typically not the case. When PSa is in "enforce=baseline" or "enforce=privileged" mode, users can use the Kyverno rule to manage pod security in a granular fashion.
 
 The `podSecurity` validate rule applies configured [pod security profile level](https://kubernetes.io/docs/concepts/security/pod-security-admission/#pod-security-levels) to the selected namespaces. You can define exemptions from enforcement when creating pods. Exemptions can be configured via the `podSecurity.exclude` attribute.
 
@@ -73,8 +75,8 @@ The `podSecurity` validate rule applies configured [pod security profile level](
 
 There are 2 types of pod security controls:
 
-- Some are declared at the [container level](#controls-at-the-container-level), selector: **container images**
-- And some others at the [pod spec level](#controls-at-the-pod-spec-level), selector: **labels**
+- ones declared at the [container level](#controls-at-the-container-level), selector: **container images**
+- others at the [pod spec level](#controls-at-the-pod-spec-level), selector: **labels**
 
 #### Controls at the container level
 
@@ -97,7 +99,7 @@ rules:
     exclude:
       any:
         - userInfo:
-            username: dummyuser
+            username: some-user
     validate:
       # this new type of rule only deals with PSS profiles
       # as we need to check if the value in the resource
@@ -132,7 +134,7 @@ rules:
     exclude:
       any:
         - userInfo:
-            username: dummyuser
+            username: some-user
     validate:
       # this new type of rule only deals with PSS profiles
       # as we need to check if the value in the resource
@@ -236,7 +238,7 @@ results:
 
 ### Extend Via Annotations
 
-This approach extends the PSA via annotations for granular control.
+This approach extends the PSa via annotations for granular control.
 
 #### Step 1. Enable additional policies for a namespace
 
@@ -281,10 +283,10 @@ pod-security.kyverno.io/label-selector: >-
 
 ## Next Steps
 
-The first implementation will enable the new type of rule to be working together with PSA. The following requirements also need to be considered while developing.
+The first implementation will enable the new type of rule to be working together with PSa. The following requirements also need to be considered while developing.
 
 - Add "warn" mode
-- Support "auto-gen"
+- Support Kyverno "auto-gen"
 - Metrics support
 - CLI support
-- Instructions of how to set up the two to work together
+- Documentation
