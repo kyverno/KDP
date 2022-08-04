@@ -39,7 +39,7 @@ There are two main use cases associated with this.
 
 1. Explicit, per-resource clean-up declaration which may be set by a user either upon creation or retroactively.
 
-1. Implicit, bulk clean-up of resources on a scheduled basis which meet a certain criteria.
+2. Implicit, bulk clean-up of resources on a scheduled basis which meet a certain criteria.
 
 
 # Proposal
@@ -49,7 +49,7 @@ In this proposal, Kyverno may function as a clean-up controller allowing it to i
 1. Use of two specific annotations which may be set on any resource:
    - `kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the annotated resource was either created or when the annotation was assigned. Value is a string and units are given in either minutes, hours, or days. Ex., `kyverno.io/ttl: 30m`, `kyverno.io/ttl: 30d`
    - `kyverno.io/expires`: Sets the absolute date and time at which clean-up should proceed. Must conform to ISO 8601 standards. Ex., `kyverno.io/expires: 2022-08-04T00:30:00Z`, `kyverno.io/expires: 2022-09-30` 
-1. Use of a new rule type tentatively called `cleanup` which will execute in background mode on a schedule given in cron format. The rule will reuse existing Kyverno policy expression paradigms and capabilities to minimize introduced complexity.
+2. Use of a new rule type tentatively called `cleanup` which will execute in background mode on a schedule given in cron format. The rule will reuse existing Kyverno policy expression paradigms and capabilities to minimize introduced complexity.
 
 The functional requirements of both capabilities are defined below.
 
@@ -203,7 +203,17 @@ These new proposed clean-up abilities would be assisted/augmented by Kyverno's p
 
 # Implementation
 
-Open
+A couple implementations have been suggested for the annotation/label methodology. They can roughly be categorized into two separate approaches: Use of a custom resource; use of existing Kubernetes constructs.
+
+## Custom Resources
+
+1. Kyverno could leverage either the existing UpdateRequest (UR) CR (with modifications) in order to support a type of "ledger" to know when to remove resources. The benefit of this approach is that it doesn't require any new CR and CRD to be invented and reduces complexity. The potential downside is the UR may not be suitable for such a job without significant modifications.
+
+2. Kyverno could create a new CR specifically for this clean-up use case. As resources come in with either annotation, the CR can be updated with the clean-up time. Kyverno would manage this CR as it does other CRs. The benefit of this approach is we can craft a CR exactly as needed to fit this purpose. The potential downside is it is more work and more complexity.
+
+## Existing Kubernetes Constructs
+
+Kyverno could alternatively leverage a CronJob resource to perform the deletions. By creating a CronJob and keeping it updated upon create/update/delete of these source resources or annotations/labels, the CronJob can be created with a matching schedule which then deletes them. The CronJob may set an ownerReference to the "parent" resource so that deleting of it causes deletion of the CronJob. (This last statement has not been completely proven.) The benefit of this approach is it reduces technical complexity required to implement an end-to-end solution by leveraging existing resource types. The potential downside is it creates additional resources in a cluster which may be undesirable. It also brings with it complexity as Kyverno's creation of these CronJobs may violate users' validate rules which will either need to be excepted or some other method found to exempt them.
 
 ## Link to the Implementation PR
 
