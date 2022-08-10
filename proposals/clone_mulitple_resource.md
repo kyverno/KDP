@@ -64,6 +64,8 @@ to copy/clone from `bootstrap` namespace to newly created namespace.
       synchronize : true
       clone:
         namespace: bootstrap    // common namespace
+        kinds:
+          - v1/Secret
         selector:
           matchLabels:
             rollout: "true"    // clone resource with matching selector i.e. configmap, secrets etc
@@ -71,7 +73,7 @@ to copy/clone from `bootstrap` namespace to newly created namespace.
 
 ### Examples:
 
-1. Clone multiple resource using matching selector
+1. Clone multiple resource using matching kinds list
 
 ```yaml
 
@@ -91,11 +93,11 @@ spec:
     generate:
       namespace: "{{request.object.metadata.name}}"
       synchronize : true
-      clone:
-        namespace: bootstrap
-        selector:
-          matchLabels:
-            rollout: "true"    // clone resource with matching selector i.e. configmap, secrets etc
+      cloneList:
+        - namespace:
+            - stagging
+          kinds:
+            - v1/Secret   // clone resource with matching selector i.e. configmap, secrets etc
 ```
 
 
