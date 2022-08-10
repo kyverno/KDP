@@ -55,20 +55,17 @@ This could be done using  matching selector to select multiple resources of the 
 multiple kinds/name pairs, similar to the match/exclude blocks we use to filter resources in the admission control
 webhooks.
 
-In below extended ClusterPolicy example, multiple resources can be selected using a match label selector `rollout: true`
-to copy/clone from `bootstrap` namespace to newly created namespace.
+In below extended ClusterPolicy example, multiple resources can be selected using a kinds list to copy/clone from 
+`stagging` namespace to newly created namespace.
 
 ```yaml
     generate:
       namespace: "{{request.object.metadata.name}}"
       synchronize : true
-      clone:
-        namespace: bootstrap    // common namespace
+      cloneList:
+      - namespace: stagging
         kinds:
-          - v1/Secret
-        selector:
-          matchLabels:
-            rollout: "true"    // clone resource with matching selector i.e. configmap, secrets etc
+          - v1/Secret   // clone resource with matching selector i.e. configmap, secrets etc
 ```
 
 ### Examples:
@@ -94,17 +91,16 @@ spec:
       namespace: "{{request.object.metadata.name}}"
       synchronize : true
       cloneList:
-        - namespace:
-            - stagging
-          kinds:
-            - v1/Secret   // clone resource with matching selector i.e. configmap, secrets etc
+      - namespace: stagging
+        kinds:
+          - v1/Secret   // clone resource with matching selector i.e. configmap, secrets etc
 ```
 
 
 # Implementation
 
-- As part of implementation changes,firstly we have to extend the existing APIs, the `generate.clone` rule
-will have a selector option to provide the matching labels as key:value pair.
+- As part of implementation changes,firstly we have to extend the existing APIs, the `generate.cloneList` rule
+will have a `kinds` and `namespace` field to provide the list of resources to be cloned.
 
 ```go
 // Generation defines how new resources should be created and managed.
@@ -112,29 +108,23 @@ type Generation struct {
 .
 .
 .
-// Clone specifies the source resource used to populate each generated resource.
+// CloneList specifies the list of source resource used to populate each generated resource.
 // +optional
-Clone CloneFrom `json:"clone,omitempty" yaml:"clone,omitempty"`
+CloneList CloneList `json:"cloneList,omitempty" yaml:"cloneList,omitempty"`
 }
 
-type CloneFrom struct {
+type CloneList struct {
 // Namespace specifies source resource namespace.
 // +optional
 Namespace string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
 
-// Name specifies name of the resource.
-Name string `json:"name,omitempty" yaml:"name,omitempty"`
-
-// Selector is a label selector. Label keys and values in `matchLabels` support the wildcard
-// characters `*` (matches zero or many characters) and `?` (matches one character).
-// Wildcards allows writing label selectors like ["storage.k8s.io/*": "*"]. Note that
-// using ["*" : "*"] matches any key and value but does not match an empty label set.
+// Kinds is a list of resource kinds.
 // +optional
-Selector *metav1.LabelSelector `json:"selector,omitempty" yaml:"selector,omitempty"`
+Kinds []string `json:"kinds,omitempty" yaml:"kinds,omitempty"`
 }
 ```
 
-- Generate controller will filter out the resources based on labels selectors and wildcards, similar to
+- Generate controller will filter out the resources based on kinds list, similar to
   match and exclude block.
 
 - Once the resources have been cloned, we need to make sure the reference resource and newly generated 
@@ -155,7 +145,7 @@ N/A
 
 # Alternatives
 
-- Clone multiple resource using list of kind/namespace pairs in `spec.Clone`
+- Clone multiple resource using list of kind/namespace pairs in `spec.clone`
 - which is not easy to extend/manage new or existing policies due to backward compatibility.
 - If we support cloning specific resources from a namespace, we end up writing
   more then one policy/rule to clone multiple resources.
@@ -170,4 +160,4 @@ N/A
 
 # CRD Changes (OPTIONAL)
 
-This KDP will require introduction of a new field type under `generate.clone` rule named as `selector`.
+This KDP will require introduction of two new fields under `generate.cloneList` rule.
