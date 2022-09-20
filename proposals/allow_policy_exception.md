@@ -1,9 +1,9 @@
-# Allowing Policy Exception
+# Policy Exceptions
 
-- **Authors**: Jim Bugwadia (jim@nirmata.com), Eileen Yu (@Eileen-Yu)
-- **Date**: Sep 16th, 2022
-- **Update**:
-- **Abstract**: Overwrite policy for certain resources
+- **Authors**: Eileen Yu (@Eileen-Yu), Jim Bugwadia (jim@nirmata.com)
+- **Created**: Sep 16th, 2022
+- **Updated**: Sep 20th, 2022
+- **Abstract**: Allow managing policy exceptions (exclude) independently of policies
 
 ## Contents
 
@@ -19,32 +19,34 @@
 
 ## Introduction
 
-This document introduces a new CRD `PolicyViolationExceptions` . The proposed CRD aims to provide certain resource with privileges. The resource approved by such CRD would temporarily escape from specific policy rules.
+Kyverno policy rules contain an `exclude` block which allows excluding admission requests by resource (name, API group, versions, and kinds), resource labels, namespaces, namespace labels, users, use groups, service accounts, user role and groups. This construct allows flexibility in selecting when a policy should be applied to a admission review request.
+
+This proposal introduces the concept of a `PolicyException` which is similar to the `exclude` declaration but is decoupled from the policy lifecycle. 
 
 ## The Problem
 
-When a policy is applied, all the matching resources / users have to follow the rules specified in it. But in certain cases, user may find necessary to get permission which will break current rules. Nonetheless, the original rule is still valid and should not be changed, especially for those cases that would break the rule for only once or in a period. This requires to introduce the exception mechanism.
+Policies are often managed via GitOps, and a global policy set may apply across several clusters. In some cases a policy override may be required in specific clusters. Hence, managing exceptions in the policy declaration itself can become painful. 
 
-Some related issues on this:
+In addition, when a policy exception declaration is updated, there is no clear record of why that exception was added.
+
+These pain points are well ariculated in the following GitHub issue and discussion:
 
 - [Overwriting Existing policies](https://github.com/kyverno/kyverno/discussions/4310)
 - [Feature: New CRDs for PolicyViolationExcepotions](https://github.com/kyverno/kyverno/issues/2627)
 
-One possible solution is to overwrite the existing policies, where the user adds certain cases in the `exclude` spec, or retune some other fields. However, this would cause some ambiguous permission boundary as well as some security risks. Also, additional spec would be needed to specify if a certain policy can be overwrote or not.
-
-It is recommended to introduce a new CRD for those privileged resources while avoid affecting the existing policy.
 
 ## Proposed Solution
 
-### Possible Solution
+The proposed solution is to introduce two new Custom Resource Definitions (CRDs) that enable managing policy exceptions:
 
-For a clearer authority management, a `Request-Response` mechanism can be considered.
+* **PolicyExceptionRequest**: a namespaced request to exclude a resource from a policy rule
+* **PolicyExceptionApprovals**: a cluster-wide resource that permits one or more exceptions
 
-#### Request
+#### High-Level Flow
 
-The user would create the `PolicyViolationExceptions` CR.
+1. A user that is impacted by a policy violaation can create a `PolicyExceptionRequest` for their workload:
 
-`PolicyViolationExceptions` Example:
+`PolicyExceptionRequest` sample:
 
 ```yaml
 ...
@@ -55,40 +57,30 @@ spec:
   exclude:..
   duration(optional):..
 status:
-  state: `PendingApproval` / `Approved` / `Rejected`
+  state: `Pending` / `Approved` / `Rejected`
 ```
 
-- policyName: target policy name
-- ruleName: target rule name
-- reason: brief explanation for the exception
-- exclude: specify the resource that need to be excluded from the target policy, may include resource information, e.g. kind, name, namespace, labels
-- duration(optional): how long the exception would be valid
+- **policyName**: target policy name
+- **ruleName**: target rule name
+- **reason**: brief explanation for the exception
+- **exclude**: all information available in the `exclude` declaration
+- **duration(optional)**: how long the exception is required for
 
-#### Response
+2. The admin can review the `PolicyExceptionRequest` and can either `approve` or `reject` it. This is done by updating the `PolicyExceptionApprovals` which serves as a log of approval decisions. 
 
-Once the CR is created, the admin would be able to review the content and modify it if necessary.
-
-1. If the exception is approved, a new CR `Approval` would be generated.
-
-`Approval` Example:
+`PolicyExceptionApprovals` sample:
 
 ```yaml
----
 spec:
-  exceptions: name:..
-    nameSpace:..
-    duration:..
+  exceptions:
+  - name: permit-root-user
+    namespace: nginx
+  - name: permit-host-port
+    namespace: nginx 
 ```
 
-- name: name for the approved exception
-- nameSpace: valid namespace that would be affected by the exception
-- duration: how long the exception would be valid
 
-Then the relative resource would get mutated automatically based on the dual effect of the original policy and the exception.
-
-2. If the exception is rejected, then nothing would go on.
-
-The CRs would get recycled once the resources are reconciled OR it is outdated.
+3. When Kyverno applies a policy rule, it will now use both the `exclude` declaration in the policy and a set of chached policy exceptions that match the policy rule.
 
 ### Possible User Stories
 
@@ -132,7 +124,7 @@ spec:
                   - image: "!*:latest"
 ```
 
-**b. What scenario the requester want to escape from the policy?**
+**b. What scenario the requester want to exclude from the policy?**
 
 The requester may not want to create a specific image tag which just used for test. The default one would be 'latest'. Then this would break the policy.
 
