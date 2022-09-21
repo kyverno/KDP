@@ -215,6 +215,24 @@ A couple implementations have been suggested for the annotation/label methodolog
 
 Kyverno could alternatively leverage a CronJob resource to perform the deletions. By creating a CronJob and keeping it updated upon create/update/delete of these source resources or annotations/labels, the CronJob can be created with a matching schedule which then deletes them. The CronJob may set an ownerReference to the "parent" resource so that deleting of it causes deletion of the CronJob. (This last statement has not been completely proven.) The benefit of this approach is it reduces technical complexity required to implement an end-to-end solution by leveraging existing resource types. The potential downside is it creates additional resources in a cluster which may be undesirable. It also brings with it complexity as Kyverno's creation of these CronJobs may violate users' validate rules which will either need to be excepted or some other method found to exempt them.
 
+## Pros And Cons of Both implementations
+**Implementation 1**: add a new cleanup controller in the Kyerno main process
+
+| Pros | Cons |
+| --- | --- |
+| We can make use of the existing UpdateRequest custom resource for knowing when to delete the required resources | Using the existing UpdateRequest will need changes in the CR which is already used for generate and mutateExsiting rules. This can increase the complexity of the approach. |
+| We can create a whole new custom resource. This will be good since there will be no existing logic to be dealt with. We can make it as needed. | More work and more memory/CPU consumption of the Kyverno pods because of the new CR created for clean-up use case and the cleanup controller made for handling that CR. |
+|  | Setting a timer for each resource can be inefficient in large clusters. |
+
+
+**Implementation 2**: reuse the Kubernetes CronJob resource
+
+| Pros | Cons |
+| --- | --- |
+| Existing Kubernetes resource(CronJob) will be used for handling the deletion, there is no need to create a new CR and controller. | A new CronJob will be created for each matching resource, which can be undesirable for the cluster state. |
+| CronJob will do both: schedule the deletion and execute the deletion. | A CronJob created through the cleanup rule should be ignored by other rules(validate and mutate). For example, A validate policy should not block the creation of that CronJob. This can cause some complexities in the approach. We can label these CronJobs and ignore them while applying other policies. |
+| The CronJobs can be easily removed from the cluster after the completion by setting their ownerReference to the resource it was created to delete. |  |
+
 ## Link to the Implementation PR
 
 N/A
