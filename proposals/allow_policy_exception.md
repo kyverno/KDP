@@ -43,10 +43,10 @@ The proposed solution is to introduce two new Custom Resource Definitions (CRDs)
 
 ### High-Level Flow
 
-There are 2 roles that would be involved:
+There are 2 personnas that would be involved:
 
-- **Policy User**: able to create / delete / modify `PolicyExceptionRequest`
-- **Policy Admin**: able to review `PolicyExceptionRequest`; create / delete / modify `PolicyExceptionApprovals`
+- **Policy User**: able to create, delete , and modify `PolicyExceptionRequest` resources
+- **Policy Admin**: able to review `PolicyExceptionRequest`; and create, delete, modify `PolicyExceptionApprovals` resources
 
 1. A user that is impacted by a policy violation can create a `PolicyExceptionRequest` for their workload:
    `PolicyExceptionRequest` sample:
@@ -54,45 +54,49 @@ There are 2 roles that would be involved:
 ```yaml
 spec:
   exceptions:
-    - policyName: ".."
-      ruleNames:
-        - ".."
-        - ".."
-  reason: ..
-  exclude: ..
-  duration(optional): ..
+  - policyName: "pod-security"
+    ruleNames:
+    - "restricted"
+    reason: "..."
+    exclude: {}      # same as a policy exclude declaration
+    duration: "30d"  # optional time string 
 status:
-  state: PendingApproval / Approved / Denied
+  state: "Pending" # Pending | Approved | Denied
 ```
 
-`spec` is where the user fill in for request.
+`spec` is where the user fills in the request.
 
-- exceptions: an array of exception elements
+- exceptions: a list of exception objects:
   - policyName: target policy name (string)
   - ruleNames: an array of target rule names (string)
-- reason: brief explanation for the exception
-- exclude: specify the resource that need to be excluded from the target policy, it can be [MatchResources](https://github.com/kyverno/kyverno/blob/v1.8.0-rc2/api/kyverno/v1/match_resources_types.go#L10)
-- duration(optional): how long the exception would be valid
+  - reason: brief explanation for the exception
+  - exclude: specify the resource that need to be excluded from the target policy, it can be [MatchResources](https://github.com/kyverno/kyverno/blob/v1.8.0-rc2/api/kyverno/v1/match_resources_types.go#L10)
+  - duration(optional): how long the exception would be valid
 
-`status` is where the `PolicyExceptionController` would automatically update based on admin activity.
+`status` is where the `PolicyExceptionController` would automatically update based on Policy Admin activity and other updates.
 
-If the `state` is `PendingApproval`, user can have the access to delete / modify it. If the state is `Approved`, user should be blocked to modify / delete the CR. If the state is `Denied`, user can modify and resubmit it, then the controller would change the state back to `PendingApproval`. We can use RBAC to restrict such accessibility.
+**PolicyExceptionRequest lifecycle**
 
-2. The admin can review the `PolicyExceptionRequest` and can either `approve` or `deny` it. This is done by updating the `PolicyExceptionApprovals` which serves as a log of approval decisions.
+* If the `state` is `Pending` (the default), user can delete or modify the PolicyExceptionRequest. 
+* If the state is `Approved`, user will be blocked from modifying the PolicyExceptionRequest. 
+* The user can always delete the PolicyExceptionRequest when it is no longer required. 
+* If the state is `Denied`, user can modify the request. The controller would change the state back to `Pending`. We can use RBAC to restrict such accessibility.
+
+2. The admin can review the `PolicyExceptionRequest` and can either `approve` or `deny` it. This is done by updating the `PolicyExceptionApprovals` which serves as a log of approval (or denial) decisions.
 
 `PolicyExceptionApproval` sample:
 
 ```yaml
 spec:
-  approvalPolicy: manual
+  approvalPolicy: Manual              # Manual (default) | Automatic
   exceptions:
     - name: permit-root-user
       namespace: nginx
-      status: Approved / Denied
-      reason: ...
+      status: "Approved"
+      reason: "..."
     - name: permit-host-port
       namespace: nginx
-      status: Approved / Denied
+      status: "Denied"
       reason: ...
 ```
 
@@ -115,11 +119,11 @@ The `status` and `reason` would also be updated to the `PolicyExceptionRequest` 
 
 ### Possible User Stories
 
-**As a user, I want to be excepted from label tag rule for test.**
+**As a user, I want an exception from the latest tag rule for test.**
 
 **a. What policy blocks what resources/user?**
 
-The policy disables the user to use an image tag called `latest`.
+The policy blocks users from deploying an image tag called `latest`.
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -147,11 +151,11 @@ spec:
 
 **b. What scenario the user want to exclude from the policy?**
 
-The user may not want to create a specific image tag which just used for test. The default one would be 'latest'. Then this would break the policy.
+The user may not have access to create a new tag. The default one would be 'latest'. Then this would violate the policy.
 
 **c. Why it is not necessary to modify the policy?**
 
-The original rule is still valid for the production. We just need an exception for the dev test.
+The original rule is still valid for the other workloads. We just need an exception for the dev test.
 
 **d. How does the user write the new CR?**
 
@@ -177,7 +181,7 @@ spec:
           - dev
 ```
 
-The `state` would be automatically changed to `PendingApproval`.
+The `state` would be automatically changed to `Pending`.
 
 **e. How does the administrator review the CR?**
 
@@ -210,7 +214,8 @@ spec:
 **f. What happened if the CR get rejected?**
 
 The `status` in the `PolicyExceptionRequest` would be updated to `Denied`, and the `reason` in the `PolicyExceptionRequest` would also be updated to tell the user the rejection reason.
-The user can modify `PolicyExceptionRequest` based on feedback and resubmit. The `status` in `PolicyExceptionRequest` would be then changed to `PendingApproval` again and wait to be reviewed.
+
+The user can modify `PolicyExceptionRequest` based on feedback and resubmit. The `status` in `PolicyExceptionRequest` would be then changed to `Pending` again and wait to be reviewed.
 
 **g. What happened next if the CR get approved?**
 
@@ -233,18 +238,19 @@ spec:
       image: test:latest
 ```
 
-**i. What if the user try to break another rule that is not included by the exception request?**
+**i. What if the user try to violate another policy rule that is not included by the exception request?**
 
 If the breaking rule cannot be matched with the exceptions, the requested resources should be blocked still.
 
-## Implementation
+## Implementation Notes
 
-We will introduce a new operator: `PolicyExceptionController` and two new CRDs: `PolicyExceptionRequest` and `PolicyExceptionApprovals`.
+We will introduce a new controller: `PolicyExceptionController` and two new CRDs: `PolicyExceptionRequest` and `PolicyExceptionApprovals`.
 
 We can use `Kubebuilder` to scaffold the new operator. The CRDs `PolicyExceptionRequest` and `PolicyExceptionApprovals` are also defined in this scaffold project.
 
-The `PolicyExceptionController` would act as a bridge between `PolicyExceptionRequest` and `PolicyExceptionApprovals`. Or more specific:
+The `PolicyExceptionController` would act as a bridge between `PolicyExceptionRequest` and `PolicyExceptionApprovals`. 
 
+More specifically, the controller will:
 - Watch the `PolicyExceptionApprovals`, updates `status` & `reason` for `PolicyExceptionRequest`
 - Block changes to `PolicyExceptionRequest` if the `state` is `Approved`
 - Change `state` back to `PendingApproval` if user modified `PolicyExceptionRequest`
@@ -252,9 +258,9 @@ The `PolicyExceptionController` would act as a bridge between `PolicyExceptionRe
 - Handle auto Approvals in the future
 - Handle signed Approvals in the future
 
-Kyverno would cache `PolicyExceotionApprovals`. We may introduce a new `ExceptionInformer` to get the latest `PolicyExceptionApprovals` in the cluster.
+Kyverno would cache `PolicyExceotionApprovals`. We may introduce a new `ExceptionInformer` to get the latest `PolicyExceptionApprovals` in the cluster. We can optimize to only cache approved exceptions.
 
-When the user apply the target resource, Kyverno would first go through the policy check. If it's blocked, compare the violation report with the approved exceptions in the corresponding namespace. If all the violations are matched with exceptions, let the request pass.
+When the user applies the target resource, Kyverno would first go through the policy check. A new method will be introduced to fetch excpetions and add them to the policy rule `exclude` block.
 
 ![flow](https://user-images.githubusercontent.com/48944635/192390568-d03e2c98-5902-41a2-9082-07994582b33c.png)
 
@@ -330,11 +336,23 @@ This may also help avoid some extreme conficts, such as user may modify the `Pol
 
 ![flow](https://user-images.githubusercontent.com/48944635/192406280-4225202e-64e3-4a73-a9ab-31727646dc17.png)
 
+
+### Questions and Notes
+
+1. The PolicyExceptionRequest is namespaced. Is there a use-case for a cluster-wide exception?
+
+2. Each new CR has a independent lifecycle and is managed by different roles. This seems OK, but needs more analysis.
+
+3. The PolicyExceptionController will manage the `status` of the PolicyExceptionRequest and also watch the PolicyExceptionApprovals. Is this an appropriate controller design?
+
+
 ## Next Steps
 
 This proposal just provides a solution for basic exception. There are many other things need to be taken into consideration.
-
 1. More user stories / functions
 2. Exceptions lifecycle management
-3. Recycling mechanism
-4. Documentation
+3. Auto-approvals
+4. Exception cleanup
+5. Documentation
+
+
