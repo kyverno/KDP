@@ -2,7 +2,7 @@
 
 - **Authors**: Eileen Yu (@Eileen-Yu), Jim Bugwadia (jim@nirmata.com)
 - **Created**: Sep 16th, 2022
-- **Updated**: Sep 26th, 2022
+- **Updated**: Sep 29th, 2022
 - **Abstract**: Allow managing policy exceptions (exclude) independently of policies
 
 ## Contents
@@ -13,7 +13,7 @@
   - [High-Level Flow](#high-level-flow)
   - [Ideal Usage](#ideal-usage)
   - [Possible User Stories](#possible-user-stories)
-- [Implementation](#implementation)
+- [Implementation Notes](#implementation-notes)
 - [Alternative Solution](#alternative-solution)
 - [Next Steps](#next-steps)
 
@@ -38,15 +38,15 @@ These pain points are well ariculated in the following GitHub issue and discussi
 
 The proposed solution is to introduce two new Custom Resource Definitions (CRDs) that enable managing policy exceptions:
 
-- **PolicyExceptionRequest**: a namespaced request to exclude a resource from a policy rule
-- **PolicyExceptionApprovals**: a cluster-wide resource that permits one or more exceptions
+- **PolicyExceptionRequest**: a request to exclude a resource from a policy rule, namespaced / cluster-wide
+- **PolicyExceptionResponse**: a cluster-wide resource that response to a specific `PolicyExceptionRequest`
 
 ### High-Level Flow
 
 There are 2 personnas that would be involved:
 
 - **Policy User**: able to create, delete , and modify `PolicyExceptionRequest` resources
-- **Policy Admin**: able to review `PolicyExceptionRequest`; and create, delete, modify `PolicyExceptionApprovals` resources
+- **Policy Admin**: able to review `PolicyExceptionRequest`; and create, delete, modify `PolicyExceptionResponse` resources
 
 1. A user that is impacted by a policy violation can create a `PolicyExceptionRequest` for their workload:
    `PolicyExceptionRequest` sample:
@@ -54,12 +54,12 @@ There are 2 personnas that would be involved:
 ```yaml
 spec:
   exceptions:
-  - policyName: "pod-security"
-    ruleNames:
-    - "restricted"
-    reason: "..."
-    exclude: {}      # same as a policy exclude declaration
-    duration: "30d"  # optional time string 
+    - policyName: "pod-security"
+      ruleNames:
+        - "restricted"
+      reason: "..."
+      exclude: {} # same as a policy exclude declaration
+      duration: "30d" # optional time string
 status:
   state: "Pending" # Pending | Approved | Denied
 ```
@@ -77,45 +77,39 @@ status:
 
 **PolicyExceptionRequest lifecycle**
 
-* If the `state` is `Pending` (the default), user can delete or modify the PolicyExceptionRequest. 
-* If the state is `Approved`, user will be blocked from modifying the PolicyExceptionRequest. 
-* The user can always delete the PolicyExceptionRequest when it is no longer required. 
-* If the state is `Denied`, user can modify the request. The controller would change the state back to `Pending`. We can use RBAC to restrict such accessibility.
+- If the `state` is `Pending` (the default), user can delete or modify the PolicyExceptionRequest.
+- If the state is `Approved`, user will be blocked from modifying the PolicyExceptionRequest.
+- The user can always delete the PolicyExceptionRequest when it is no longer required.
+- If the state is `Denied`, user can modify the request. The controller would change the state back to `Pending`. We can use RBAC to restrict such accessibility.
 
-2. The admin can review the `PolicyExceptionRequest` and can either `approve` or `deny` it. This is done by updating the `PolicyExceptionApprovals` which serves as a log of approval (or denial) decisions.
+2. The admin can review the `PolicyExceptionRequest` and can either `approve` or `deny` it. This is done by creating a corresponding `PolicyExceptionResponse` which serves as a log of approval (or denial) decisions.
 
-`PolicyExceptionApproval` sample:
+`PolicyExceptionResponse` sample:
 
 ```yaml
 spec:
-  approvalPolicy: Manual              # Manual (default) | Automatic
-  exceptions:
-    - name: permit-root-user
-      namespace: nginx
-      status: "Approved"
-      reason: "..."
-    - name: permit-host-port
-      namespace: nginx
-      status: "Denied"
-      reason: ...
+  approvalPolicy: Manual # Manual (default) | Automatic
+  name: permit-root-user
+  status: "Approved" # Approved | Denied
+  reason: "..."
 ```
 
 - approvalPolicy: policies that are approved manually / automatically
-- exceptions: an array of exception elements
-  - name: name of corresponding `PolicyExceptionRequest`
-  - namespace: namespace of corresponding `PolicyExceptionRequest`
-  - status: whether admin decide to approve / deny the `PolicyExceptionRequest`
-  - reason: why admin approve / deny the `PolicyExceptionRequest`
+- name: name of corresponding `PolicyExceptionRequest`, should be unique
+- status: whether admin decide to approve / deny the `PolicyExceptionRequest`
+- reason: why admin approve / deny the `PolicyExceptionRequest`
 
 The `status` and `reason` would also be updated to the `PolicyExceptionRequest` to let the user know by the `PolicyExceptionController`.
 
 ### Ideal Usage
 
-1. User creates a CR `PolicyExceptionRequest` to request for exception in a certain namespace.
-2. Admin reviews the request, and adds new element in `PolicyExceptionApprovals` to approve / deny the request.
+1. User creates a CR `PolicyExceptionRequest` to request for exception.
+2. Admin reviews the request, and create a corresponding `PolicyExceptionResponse` to approve / deny the request.
 3. A new `PolicyExceptionController` would update the `PolicyExceptionRequest` based on admin's feedback. If not approved, user can modify and resubmit `PolicyExceptionRequest`.
-4. The `PolicyExceptionApprovals` would be cached by Kyverno for policy match and exclude.
-5. User creates the corresponding resource. Kyverno matches the resource with corresponding policies and exceptions. If all broken rules can be matched with exceptions, let the request pass.
+4. All of the `PolicyExceptionResponse` would be cached by Kyverno for policy match and exclude.
+5. User creates the corresponding resource.
+   Kyverno matches the resource with corresponding policies and exceptions. If all broken rules can be matched with exceptions, let the request pass.
+   There would be logs in PolicyReport indicating which exceptions the resource has passed.
 
 ### Possible User Stories
 
@@ -185,30 +179,26 @@ The `state` would be automatically changed to `Pending`.
 
 **e. How does the administrator review the CR?**
 
-Once the CR is created, the admin can review the CR and update `PolicyExceptionApprovals`.
+Once the CR is created, the admin can review the CR and create a corresponding `PolicyExceptionResponse`.
 
-(1) The admin reject the request by adding one element, setting the `status` as `Denied`.
+(1) The admin reject the request by creating a `PolicyExceptionResponse`, setting the `status` as `Denied`.
 
 ```yaml
 spec:
   approvalPolicy: manual
-  exceptions:
-    - name: allow-tag-for-test
-      namespace: dev
-      status: Denied
-      reason: ...
+  name: allow-tag-for-test
+  status: Denied
+  reason: ...
 ```
 
-(2) The admin approve the request by adding one element, setting the `status` as `Approved`.
+(2) The admin approve the request by creating a `PolicyExceptionResponse`, setting the `status` as `Approved`.
 
 ```yaml
 spec:
   approvalPolicy: manual
-  exceptions:
-    - name: allow-tag-for-test
-      namespace: dev
-      status: Approved
-      reason: ...
+  name: allow-tag-for-test
+  status: Approved
+  reason: ...
 ```
 
 **f. What happened if the CR get rejected?**
@@ -219,7 +209,7 @@ The user can modify `PolicyExceptionRequest` based on feedback and resubmit. The
 
 **g. What happened next if the CR get approved?**
 
-Now the `PolicyExceptionRequest` is valid. Kyverno would cache the updated `PolicyExceptionApprovals`, and use in the logic for policy match and exclude.
+Now the `PolicyExceptionRequest` is valid. Kyverno would cache the approved `PolicyExceptionResponse`, and use in the logic for policy match and exclude.
 
 **h. What does the user need to do after?**
 
@@ -244,25 +234,32 @@ If the breaking rule cannot be matched with the exceptions, the requested resour
 
 ## Implementation Notes
 
-We will introduce a new controller: `PolicyExceptionController` and two new CRDs: `PolicyExceptionRequest` and `PolicyExceptionApprovals`.
+We will introduce a new controller: `PolicyExceptionController` and two new CRDs: `PolicyExceptionRequest` and `PolicyExceptionResponse`.
 
-We can use `Kubebuilder` to scaffold the new operator. The CRDs `PolicyExceptionRequest` and `PolicyExceptionApprovals` are also defined in this scaffold project.
+We can use `Kubebuilder` to scaffold the new operator. The CRDs `PolicyExceptionRequest` and `PolicyExceptionResponse` are also defined in this scaffold project.
 
-The `PolicyExceptionController` would act as a bridge between `PolicyExceptionRequest` and `PolicyExceptionApprovals`. 
+The `PolicyExceptionController` would act as a bridge between `PolicyExceptionRequest` and `PolicyExceptionResponse`.
 
 More specifically, the controller will:
-- Watch the `PolicyExceptionApprovals`, updates `status` & `reason` for `PolicyExceptionRequest`
+
+- Watch the `PolicyExceptionResponse`, updates `status` & `reason` for corresponding `PolicyExceptionRequest`
+- Prevent user from modifying `PolicyExceptionRequest` when admin is creating the `PolicyExceptionResponse` with resource version ID
 - Block changes to `PolicyExceptionRequest` if the `state` is `Approved`
-- Change `state` back to `PendingApproval` if user modified `PolicyExceptionRequest`
-- Clean up stale entries / invalid references in `PolicyExceptionApprovals`
+- Change `state` back to `Pending` if user modified `PolicyExceptionRequest`
+- Clean up stale / invalid `PolicyExceptionResponse`
 - Handle auto Approvals in the future
 - Handle signed Approvals in the future
 
-Kyverno would cache `PolicyExceotionApprovals`. We may introduce a new `ExceptionInformer` to get the latest `PolicyExceptionApprovals` in the cluster. We can optimize to only cache approved exceptions.
+We will design the admission webhooks to mutate & validate the `PolicyExceptionResponse` when it is created / updated.
+- If the `status` is `Approved`, it would add `exclude` spec to `PolicyExceptionResponse`, along with the approvalTime in the `mutating` period.
+- If the `status` is `Pending` or `Denied`, it the request won't pass the `validating`.
 
-When the user applies the target resource, Kyverno would first go through the policy check. A new method will be introduced to fetch excpetions and add them to the policy rule `exclude` block.
+Kyverno would cache those approved `PolicyExceptionResponse` with `exclude` spec. We may introduce a new `ExceptionInformer` to get these CRs in the cluster.
 
-![flow](https://user-images.githubusercontent.com/48944635/192390568-d03e2c98-5902-41a2-9082-07994582b33c.png)
+When the user applies the target resource, Kyverno would go through the policy check. A new method will be introduced to fetch excpetions and add them to the policy rule `exclude` block.
+
+![flow](https://user-images.githubusercontent.com/48944635/193150130-1afbb8f5-e7c3-4ab0-a93d-e163b49b0b49.png)
+
 
 ## Alternative Solution
 
@@ -271,7 +268,6 @@ An alternative is to let admin directly give feedback in the `PolicyExceptionReq
 `PolicyExceptionRequest` Sample:
 
 ```yaml
-
 ---
 spec:
   exceptions:
@@ -307,7 +303,6 @@ The `PolicyExceptionController` would watch the `state` in `PolicyExceptionReque
 `PolicyExceptionApproval` Sample:
 
 ```yaml
-
 ---
 spec:
   exceptions:
@@ -336,7 +331,6 @@ This may also help avoid some extreme conficts, such as user may modify the `Pol
 
 ![flow](https://user-images.githubusercontent.com/48944635/192406280-4225202e-64e3-4a73-a9ab-31727646dc17.png)
 
-
 ### Questions and Notes
 
 1. The PolicyExceptionRequest is namespaced. Is there a use-case for a cluster-wide exception?
@@ -345,14 +339,12 @@ This may also help avoid some extreme conficts, such as user may modify the `Pol
 
 3. The PolicyExceptionController will manage the `status` of the PolicyExceptionRequest and also watch the PolicyExceptionApprovals. Is this an appropriate controller design?
 
-
 ## Next Steps
 
 This proposal just provides a solution for basic exception. There are many other things need to be taken into consideration.
+
 1. More user stories / functions
 2. Exceptions lifecycle management
 3. Auto-approvals
 4. Exception cleanup
 5. Documentation
-
-
