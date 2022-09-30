@@ -2,7 +2,7 @@
 
 - **Authors**: Eileen Yu (@Eileen-Yu), Jim Bugwadia (jim@nirmata.com)
 - **Created**: Sep 16th, 2022
-- **Updated**: Sep 29th, 2022
+- **Updated**: Oct 13th, 2022
 - **Abstract**: Allow managing policy exceptions (exclude) independently of policies
 
 ## Contents
@@ -10,11 +10,12 @@
 - [Introduction](#introduction)
 - [The Problem](#the-problem)
 - [Proposed Solution](#proposed-solution)
+- [Implementation Notes](#implementation-notes)
+- [Alternative-Solution](#alternative-solution)
   - [High-Level Flow](#high-level-flow)
   - [Ideal Usage](#ideal-usage)
   - [Possible User Stories](#possible-user-stories)
-- [Implementation Notes](#implementation-notes)
-- [Alternative Solution](#alternative-solution)
+  - [Alternative Implementation Notes](#alternative-implementation-notes)
 - [Next Steps](#next-steps)
 
 ## Introduction
@@ -36,12 +37,52 @@ These pain points are well ariculated in the following GitHub issue and discussi
 
 ## Proposed Solution
 
-The proposed solution is to introduce two new Custom Resource Definitions (CRDs) that enable managing policy exceptions:
+Considering different organizations may have different requirement on the `request-response` workflow, we may discuss this part further.
+For the first version, We would mainly focus on how Kyverno would deal with those exceptions.
+
+A new CRD `PolicyException` would be introduced:
+
+- **PolicyException**: a CR to tell Kyverno which policies / rules to bypass
+
+This CR should only be created after the request is approved.
+The scope can either be namespaced / cluster-wide.
+
+`PolicyException` sample:
+
+```yaml
+spec:
+  exceptions:
+    - policyName: DisallowLatestTag
+      ruleNames:
+        - DisallowLatestImageTagForMainContainer
+        - DisallowLatestImageTagForInitContainer
+    - policyName: ValidateLabelling
+      ruleNames:
+        - ValidateLabellingBestPractices
+        - ValidateLabellingForCompany
+  exclude:
+    any:
+      - resources:
+          kinds:
+            - Pod
+```
+
+## Implementation Notes
+
+We will introduce a new new CRD: `PolicyException`.
+
+Kyverno Informer would get these `PolicyException` and cache them.
+
+The engine validation would get those exclude resources and their corresponding rules in the exception. Then add them to the policy rule `exclude` for the following logic.
+
+## Alternative Solution
+
+To introduce two new Custom Resource Definitions (CRDs) that enable managing policy exceptions:
 
 - **PolicyExceptionRequest**: a request to exclude a resource from a policy rule, namespaced / cluster-wide
 - **PolicyExceptionResponse**: a cluster-wide resource that response to a specific `PolicyExceptionRequest`
 
-### High-Level Flow
+#### High-Level Flow
 
 There are 2 personnas that would be involved:
 
@@ -101,7 +142,7 @@ spec:
 
 The `status` and `reason` would also be updated to the `PolicyExceptionRequest` to let the user know by the `PolicyExceptionController`.
 
-### Ideal Usage
+#### Ideal Usage
 
 1. User creates a CR `PolicyExceptionRequest` to request for exception.
 2. Admin reviews the request, and create a corresponding `PolicyExceptionResponse` to approve / deny the request.
@@ -111,7 +152,7 @@ The `status` and `reason` would also be updated to the `PolicyExceptionRequest` 
    Kyverno matches the resource with corresponding policies and exceptions. If all broken rules can be matched with exceptions, let the request pass.
    There would be logs in PolicyReport indicating which exceptions the resource has passed.
 
-### Possible User Stories
+#### Possible User Stories
 
 **As a user, I want an exception from the latest tag rule for test.**
 
@@ -232,7 +273,7 @@ spec:
 
 If the breaking rule cannot be matched with the exceptions, the requested resources should be blocked still.
 
-## Implementation Notes
+### Alternative Implementation Notes
 
 We will introduce a new controller: `PolicyExceptionController` and two new CRDs: `PolicyExceptionRequest` and `PolicyExceptionResponse`.
 
@@ -251,6 +292,7 @@ More specifically, the controller will:
 - Handle signed Approvals in the future
 
 We will design the admission webhooks to mutate & validate the `PolicyExceptionResponse` when it is created / updated.
+
 - If the `status` is `Approved`, it would add `exclude` spec to `PolicyExceptionResponse`, along with the approvalTime in the `mutating` period.
 - If the `status` is `Pending` or `Denied`, it the request won't pass the `validating`.
 
@@ -260,80 +302,11 @@ When the user applies the target resource, Kyverno would go through the policy c
 
 ![flow](https://user-images.githubusercontent.com/48944635/193150130-1afbb8f5-e7c3-4ab0-a93d-e163b49b0b49.png)
 
-
-## Alternative Solution
-
-An alternative is to let admin directly give feedback in the `PolicyExceptionRequest`.
-
-`PolicyExceptionRequest` Sample:
-
-```yaml
----
-spec:
-  exceptions:
-    - policyName: "..policyA"
-      ruleNames:
-        - ".."
-        - ".."
-    - policyName: "..policyB"
-      ruleNames:
-        - ".."
-        - ".."
-  reason: ..
-  exclude: ..
-  duration(optional): ..
-status:
-  state: PendingApproval / Approved / Denied
-  feedback:
-    result: deny/accept
-    description: ...
-```
-
-After the `PolicyViolationException` CR is applied to the cluster, the admin would be able to review the content and modify `spec` if necessary.
-
-`status` is the field which can only be filled by the admin.
-
-- feedback:
-  - result: whether to accept or deny the request
-  - description: reason to change / deny the request
-- state: automatically updated by `PolicyExceptionController` (not necessary to be manually updated)
-
-The `PolicyExceptionController` would watch the `state` in `PolicyExceptionRequest`. If it's `Approved`， `PolicyExceptionController` would automatically create one `PolicyExceptionApproval` for each `PolicyExceptionRequest`.
-
-`PolicyExceptionApproval` Sample:
-
-```yaml
----
-spec:
-  exceptions:
-    - policyName: "..policyA"
-      ruleNames:
-        - ".."
-        - ".."
-    - policyName: "..policyB"
-      ruleNames:
-        - ".."
-        - ".."
-  exclude: ..
-  duration: ..
-```
-
-### Alternative Usage
-
-1. User creates a CR `PolicyViolationException` to request for exception.
-2. Admin reviews the request, approve or reject.
-3. The `PolicyExceptionController` would automatically create a new CR `PolicyExceptionApproval` for each exception.
-4. Kyverno gets these `PolicyExceptionApproval`s cached.
-5. User creates the corresponding resource. Kyverno matches the resource with corresponding policies and exceptions. If all broken rules can be matched with exceptions, let the request pass.
-
-This alternative may decrease complexity of state control. The `PolicyExceptionController` would not have to watch two CRs.
-This may also help avoid some extreme conficts, such as user may modify the `PolicyExceptionRequest` when the admin is updating `PolicyExceptionApprovals`.
-
-![flow](https://user-images.githubusercontent.com/48944635/192406280-4225202e-64e3-4a73-a9ab-31727646dc17.png)
-
 ### Questions and Notes
 
 1. The PolicyExceptionRequest is namespaced. Is there a use-case for a cluster-wide exception?
+
+- Both namespaced & cluster-wide need to be taken into consideration.
 
 2. Each new CR has a independent lifecycle and is managed by different roles. This seems OK, but needs more analysis.
 
@@ -344,7 +317,8 @@ This may also help avoid some extreme conficts, such as user may modify the `Pol
 This proposal just provides a solution for basic exception. There are many other things need to be taken into consideration.
 
 1. More user stories / functions
-2. Exceptions lifecycle management
-3. Auto-approvals
-4. Exception cleanup
-5. Documentation
+2. Request-Response machanism
+3. Exceptions lifecycle management
+4. Auto-approvals
+5. Exception cleanup
+6. Documentation
