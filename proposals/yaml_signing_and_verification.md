@@ -67,10 +67,13 @@ spec:
             - Pod
       validate:
         manifests:
-          - key: |-
-            -----BEGIN PUBLIC KEY-----
-                      ...
-            -----END PUBLIC KEY-----
+          attestors:
+          - entries:
+            - keys:
+                publicKeys: |-
+                    -----BEGIN PUBLIC KEY-----
+                            ...
+                    -----END PUBLIC KEY-----
 ```
 
 This option of signing and verifying YAMLs is compatible with GitOps workflows and does not require an OCI registry to store signed resource definitions.
@@ -174,13 +177,17 @@ The priority would be to investigate the 2nd option.Resources to test with
 
 Kyverno Policy CRDs (Kyverno `Policy` and `ClusterPolicy`) is extended to include
 - `validate.manifests` declaration, which includes
-  - `keys`
-    - `key`
-    - `subject`
-  - `keyOperation`
+  - `attestors`
+    - `count`  
+      `entries`
+      - `keys`
+      - `certificates`
+      - `keyless`
+      - `attestor`
+      - `annotations`
+      - `repository`
   - `ignoreFields` 
-  - `skipUsers`
-  - `resourceBundleRef`
+  - `repository`
   - `annotationDomain`
   - `dryrun`
     - `namespace`
@@ -202,17 +209,14 @@ With this extension, `validate.manifests` declaration supports new features belo
 
 |  Property  |  Description | Required | Default |
 | ---- | ---- | ---- | --- | 
-|  keys               | list of public keys or signer's subjects   | yes |  |
-|  keyOperation       | logic operation for keys ('MustAll' or 'AtLeastOne')  | no | 'AtLeastOne' |
+|  attestors               | list of public keys or signer's subjects   | yes |  |
 |  ignoreFields       | list of fields in which mutation is allowed | no |  [] |
-|  skipUsers          | list of trusted users or service accounts  | no | [] |
-|  resourceBundleRef  | OCI path for resource bundle which includes the YAML manifest | no | '' | 
+|  repository  | OCI path for resource bundle which includes the YAML manifest | no | '' | 
 |  annotationDomain   | domain used for signature annotation | no | 'cosign.sigstore.dev' |
 |  dryrun             | configuration to enable dryrun | no | enabled = false | 
 
 
 Kyverno can verify YAML manifest using k8s-manifest-sigstore directly. The verifyManifest function of Kyverno verifies the YAML signature by the following steps. 
-- check skipUsers
 - compose ignoreFields configuration to be considered.
 - verify yaml signature by calling verify-resource function in k8s-manifest-sigstore iteratively per key
   - verify-resource function in k8s-manifest-sigstore takes yaml manifest, public key, and ignoreFields as inputs, and does the signature verification. 
@@ -225,7 +229,7 @@ Kyverno can verify YAML manifest using k8s-manifest-sigstore directly. The verif
 
 
 
-We have conducted prototype with the latest code in Kyverno [main branch](https://github.com/kyverno/kyverno/commit/008b9ab48e4cb9d7749f0cc11510527f4cdaed4b) and verified the all the requirements documented here can be demonstrated with the [implementation](https://github.com/rurikudo/kyverno/tree/dev/yaml-signing-sigstore). 
+We have conducted prototype with the latest code in Kyverno [main branch](https://github.com/kyverno/kyverno/tree/612b7fdff2eb9dc72ac00a1d2d7a35e51fe1fe9d) and verified the all the requirements documented here can be demonstrated with the [implementation](https://github.com/rurikudo/kyverno/tree/dev/yaml-signing-sigstore). 
 
 
 The prototype code ==> https://github.com/rurikudo/kyverno/tree/dev/yaml-signing-sigstore
@@ -245,6 +249,8 @@ The following resource types are tested in both dry-run disabled mode(default) a
 - ClusterPolicy
 - Policy
 
+We also have confirmed that `validate.manifests` rule can be used with the Kyverno CLI.
+Please check example [here](https://gist.github.com/rurikudo/3e5136c6ff150c019128e4bb799554d0).
 
 # References
 
