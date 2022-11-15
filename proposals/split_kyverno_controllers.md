@@ -3,7 +3,7 @@
 - Name: Split / Decompose Kyverno Controllers
 - Start Date: November 9th, 2022
 - Update data (optional): November 9th, 2022
-- Author(s): @JimBugwadia, @eddycharlie
+- Author(s): @JimBugwadia, @eddycharly
 
 # Table of Contents
 [table-of-contents]: #table-of-contents
@@ -34,36 +34,64 @@ Make a list of the definitions that may be useful for those reviewing. Include p
 # Motivation
 [motivation]: #motivation
 
-- Eliminate, or greatly reduce, client-side throttling of the webhook.
-- Improve webhook performance
-- Allow independent sizing and scalability of webhook and background processing controllers
+Here are some reasons why we are considering splitting a Kyverno installation into multiple components:
+- Eliminate (or greatly reduce) client-side throttling during processing of admission requests in the webhook
+- Allow independent sizing and scaling of components. For example, some components operate active-active while others operate using a leader-election. Hence, separating these makes sense.
+- Enhance security by limiting permissions for each component. This may not be a main driver, but is inteesting to consider.
+
+# Minimal requirements for a release
+
+The main goal for an initial implementation is to separate all background processing from the webhook processing, to eliminate throttling and allow scaling the webhook to 
 
 # Proposal
 
-## Kyverno Controllers
+## Kyverno Components
 
-### Webhook Controller
+Here is a list of the current top-level Kyverno components:
 
-The webhook controller is responsible for:
-1. Processing AdmissionReview requests from the API Server
-2. Listening to policy and policyexception changes to maintain the policy cache
+| Controller  | Function      |
+| ------------| ------------- |
+| Webhook     | Processes AdmissionReview requests from the API Server |
+| Reports Controller | Processes AdmissionReport, ClusterAdmissionReport , BackgroundScanReport, and ClusterBackgroundScanReport |
+| Update Controller | Processes UpdateRequests for mutate and generate policies |
+| Policy Controller | Processes policy changes |
+| Cleanup Controller | Processes cleanup policy related admission requests |
 
-### Background Controller
+**Note**: other components like the webhook monitor, cetificate manager, policy cache, are not mentioned here as they are they are helpers to a top-level component.
 
-The background controller is responsible for:
-1. Processing report changes
-2. Processing mutate and generate requests
 
-**NOTE 1**: its possible to further decompose the background controller, but seems like that may be of incremental value. Even with a single background controller, we can enable / disable modules or features.
+### Deciding when to split
 
-**NOTE 2**: we need to decide if the new cleanup controller is part of the background controller or should be separated.
+The reasons to split components match the items in the `Motivation` section.
+
+Compoments that have different inputs / outputs, different performance profiles, and require independent sizing should be split.
+
+Components that have a similar lifecycle and behaviors can remain together, to keep Kyverno easy to install and manage.
+
+Its important to note, that each new binary or Deployment imposes some management overhead and complexity. Hence, the goal is to find the right balance of deployment artifacts.
+
+## Proposed split
+
+The proposal is to create three processes / deployments for Kyverno:
+1. Webhook
+2. Reports
+3. Updates 
+
+The policy controller can stay with the webhook, as it has a similar lifecycle. 
+
+The cleanup controller seems fairly independent from an implementation perspective, but its not clear if splitting it provides any substantial user benefits. This requires more thought and discussion.
+
+The mutate and generate modules can also stay together.
 
 ## Code Repository Structure
 
 All Kyverno code can stay in the same repository, and the top-level packages can reflect the logical design:
 
-* **controllers/webhook**
-* **controllers/background**
+* **webhook**
+* **controllers/reports**
+* **controllers/updates**
+* **controllers/cleanup**
+* **controllers/exceptions**
 
 ## User Experience
 
@@ -79,7 +107,8 @@ When Kyverno is installed there would be two Deployment resources created. The H
 
 ### Configuration
 
-The Kyverno ConfigMap can allow enabling or disabling all major features or modules.
+The Kyverno ConfigMap can allow enabling or disabling all major features or modules. The same configuration map can be used by all processes.
+
 
 # Implementation
 
@@ -110,6 +139,11 @@ A more granular approach would also allow separate Helm charts to be installed.
 ## ArgoCD
 
 When ArgoCD is installed it runs three different controllers.
+
+## kube-prometheus
+
+When installing kube-prometheus-stack you bring prometheus operator, grafana, node-exporter, kube-state-metrics, and a bunch of resources by installing a single chart.
+
 
 # Unresolved Questions
 
