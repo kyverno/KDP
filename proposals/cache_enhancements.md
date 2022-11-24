@@ -38,13 +38,13 @@ When CM is used as a context variable or while mutating variables, Kyverno needs
 # Proposal
 
 - Initialise new filtered informer at [here](https://github.com/kyverno/kyverno/blob/main/cmd/kyverno/main.go#L456)
-// this label need to be hard-coded as at this point we don't have any resource to get this value from
 ```bash
+// this label need to be hard-coded as at this point we do not have any resource to get this value from
 labelsMap := map[string]string{"cache.kyverno.io/enabled": "true"}
 labelSelector := labels.Set(labelsMap).AsSelector().String()
 kubeResourceInformer := informers.NewFilteredSharedInformerFactory(
     kubernetesClientSet, 10*time.Minute, "", func(l0 *metav1.ListOptions) {
-        // setting kind here is optional, if we don't provide it, all resources which have labels will be cached
+        // setting kind here is optional, if we do not provide it, all resources which have labels will be cached
         l0.Kind = "ConfigMap"
         l0.LabelSelector = labelSelector
     })
@@ -79,7 +79,6 @@ create following interface in new file https://github.com/kyverno/kyverno/blob/m
 type InformerCache interface {
     GetK8sResourceFromCache(policyContext *engine.PolicyContext, resourceKind, resourceName, resourceNamespace string) (*unstructured.Unstructured, error)
 }
-```
 
 // Create a function
 func GetK8sResourceFromCache(ctx, kind, name, namespace) (*unstructured.Unstructured, error) {
@@ -90,6 +89,7 @@ func GetK8sResourceFromCache(ctx, kind, name, namespace) (*unstructured.Unstruct
     // obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(resourceObj)
     // return obj and err
 }
+```
 
 # Implementation
 
