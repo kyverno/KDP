@@ -38,13 +38,13 @@ When CM is used as a context variable or while mutating variables, Kyverno needs
 # Proposal
 
 - Initialise new filtered informer at [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/cmd/kyverno/main.go#L473)
-```bash
-// this label need to be hard-coded as at this point we do not have any resource to get this value from
+```golang
+// this label need to be hard-coded as at this point we don't have any resource to get this value from
 labelsMap := map[string]string{"cache.kyverno.io/enabled": "true"}
 labelSelector := labels.Set(labelsMap).AsSelector().String()
 kubeResourceInformer := informers.NewFilteredSharedInformerFactory(
     kubernetesClientSet, 10*time.Minute, "", func(l0 *metav1.ListOptions) {
-        // setting kind here is optional, if we do not provide it, all resources which have labels will be cached
+        // setting kind here is optional, if we don't provide it, all resources which have labels will be cached
         l0.Kind = "ConfigMap"
         l0.LabelSelector = labelSelector
     })
@@ -55,49 +55,76 @@ kubeResourceInformer := informers.NewFilteredSharedInformerFactory(
 - Create new directory `informerCache` inside [this](https://github.com/kyverno/kyverno/tree/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg) directory
 
 - Create new file `cache.go` inside `informerCache` directory with following contents
-```bash
+```golang
 package informerCache
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
-	"k8s.io/client-go/informers"
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 )
 
 type ConfigmapResolver interface {
-	Get(string, string, logr.Logger) (map[string]interface{}, error)
+	Get(string, string) (*corev1.ConfigMap, error)
 }
 
-type InformerBasedResolver struct {
-	CMLister corev1listers.ConfigMapLister
+type informerBasedResolver struct {
+	lister corev1listers.ConfigMapLister
+	logger logr.Logger
 }
 
-type ClientBasedResolver struct {
-	DynamicClient dclient.Interface
+func NewInformerBasedResolver(lister corev1listers.ConfigMapLister, logger logr.Logger) ConfigmapResolver {
+	return &informerBasedResolver{
+		lister: lister,
+		logger: logger,
+	}
+}
+
+func (i *informerBasedResolver) Get(namespace, name string) (*corev1.ConfigMap, error) {
+	cm, err := i.lister.ConfigMaps(namespace).Get(name)
+	if err != nil {
+		return nil, err
+	}
+	i.logger.Info(fmt.Sprintf("found configmap %s/%s in informer cache", namespace, name))
+	return cm, nil
+}
+
+type clientBasedResolver struct {
+	kubeClient kubernetes.Interface
+	logger     logr.Logger
+}
+
+func NewClientBasedResolver(kubeClient kubernetes.Interface, logger logr.Logger) ConfigmapResolver {
+	return &clientBasedResolver{
+		kubeClient: kubeClient,
+		logger:     logger,
+	}
+}
+
+func (c *clientBasedResolver) Get(namespace, name string) (*corev1.ConfigMap, error) {
+	cm, err := c.kubeClient.CoreV1().ConfigMaps(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	c.logger.Info(fmt.Sprintf("found configmap %s/%s using client", namespace, name))
+	return cm, nil
 }
 
 type ResolverChain []ConfigmapResolver
 
-func NewResolver(kubeResourceInformer informers.SharedInformerFactory, dynamicClient dclient.Interface) ResolverChain {
-	resolver := []ConfigmapResolver{
-		&InformerBasedResolver{CMLister: kubeResourceInformer.Core().V1().ConfigMaps().Lister()},
-		&ClientBasedResolver{DynamicClient: dynamicClient}}
-	return resolver
+func NewResolver(resolver ...ConfigmapResolver) ConfigmapResolver {
+	return ResolverChain(resolver)
 }
 
-func (i *InformerBasedResolver) Get(namespace, name string, logger logr.Logger) (map[string]interface{}, error) {
-	// try to lookup from the cache
-	return nil, nil
-}
-
-func (c *ClientBasedResolver) Get(namespace, name string, logger logr.Logger) (map[string]interface{}, error) {
-	// try to lookup from the client
-	return nil, nil
-}
-
-func (r ResolverChain) Get(namespace, name string, logger logr.Logger) (map[string]interface{}, error) {
+func (r ResolverChain) Get(namespace, name string) (*corev1.ConfigMap, error) {
 	for _, resolver := range r {
-		if cm, err := resolver.Get(namespace, name, logger); err == nil {
+		if cm, err := resolver.Get(namespace, name); err == nil {
 			return cm, nil
 		}
 	}
@@ -106,15 +133,18 @@ func (r ResolverChain) Get(namespace, name string, logger logr.Logger) (map[stri
 ```
 
 - Initialise interface and pass object to webhooks handlers on [line](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/cmd/kyverno/main.go#L630)
-```bash
-informerCacheResolver := informerCache.NewResolver(kubeResourceInformer, dClient)
+```golang
+cacheResolvers := informerCache.NewResolver(
+    informerCache.NewInformerBasedResolver(kubeResourceInformer.Core().V1().ConfigMaps().Lister(), logger),
+    informerCache.NewClientBasedResolver(kubeClient, logger),
+)
 resourceHandlers := webhooksresource.NewHandlers(
     dClient,
     kyvernoClient,
     configuration,
     metricsConfig,
     policyCache,
-    informerCacheResolver,  <-- added variable
+    cacheResolvers,  <-- added variable
     kubeInformer.Core().V1().Namespaces().Lister(),
     kubeInformer.Rbac().V1().RoleBindings().Lister(),
     kubeInformer.Rbac().V1().ClusterRoleBindings().Lister(),
@@ -130,20 +160,23 @@ resourceHandlers := webhooksresource.NewHandlers(
 
 - add `informerCacheResolver` in policyContext at following places.
     - [validate](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/handlers.go#L127)
-    - [mutate](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/handlers.go#L169) (need to verify if we require to set here as we are calling build again on line 181)
+    - [mutate](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/handlers.go#L169)
     - [mutate](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/handlers.go#L186)
-    - [audit](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/validation/validation.go#L141) (need to verify)
     
     NOTE: we are adding `informerCacheResolver` in policyContext as only policyContext is passed to some functions in image verify process. If we add this as a separate parameter, we might have to make lot of changes.
 
-- add `informerCacheResolver` [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/policyContext.go#L44)
+- add `InformerCacheResolver` [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/policyContext.go#L44)
 
-- get ConfigMap from informerCacheResolver [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/jsonContext.go#L353)
-```bash
-    obj, err := ctx.informerCacheResolver.Get()
-    if err != nil {
-        return nil, fmt.Errorf("failed to get configmap %s/%s : %v", namespace, name, err)
-    }
+- get ConfigMap from InformerCacheResolver [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/jsonContext.go#L353)
+```golang
+	obj, err := ctx.InformerCacheResolver.Get(namespace.(string), name.(string))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get configmap %s/%s : %v", namespace, name, err)
+	}
+
+	// extract configmap data
+	contextData["data"] = obj.Data
+	contextData["metadata"] = obj.ObjectMeta
 ```
 
 # Implementation
