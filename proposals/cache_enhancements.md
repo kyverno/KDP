@@ -60,10 +60,7 @@ package informerCache
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -71,64 +68,55 @@ import (
 )
 
 type ConfigmapResolver interface {
-	Get(string, string) (*corev1.ConfigMap, error)
+	Get(context.Context, string, string) (*corev1.ConfigMap, error)
 }
 
 type informerBasedResolver struct {
 	lister corev1listers.ConfigMapLister
-	logger logr.Logger
 }
 
-func NewInformerBasedResolver(lister corev1listers.ConfigMapLister, logger logr.Logger) ConfigmapResolver {
+func NewInformerBasedResolver(lister corev1listers.ConfigMapLister) ConfigmapResolver {
 	return &informerBasedResolver{
 		lister: lister,
-		logger: logger,
 	}
 }
 
-func (i *informerBasedResolver) Get(namespace, name string) (*corev1.ConfigMap, error) {
-	cm, err := i.lister.ConfigMaps(namespace).Get(name)
-	if err != nil {
-		return nil, err
-	}
-	i.logger.Info(fmt.Sprintf("found configmap %s/%s in informer cache", namespace, name))
-	return cm, nil
+func (i *informerBasedResolver) Get(bgContext context.Context, namespace, name string) (*corev1.ConfigMap, error) {
+	return i.lister.ConfigMaps(namespace).Get(name)
 }
 
 type clientBasedResolver struct {
 	kubeClient kubernetes.Interface
-	logger     logr.Logger
 }
 
-func NewClientBasedResolver(kubeClient kubernetes.Interface, logger logr.Logger) ConfigmapResolver {
+func NewClientBasedResolver(kubeClient kubernetes.Interface) ConfigmapResolver {
 	return &clientBasedResolver{
 		kubeClient: kubeClient,
-		logger:     logger,
 	}
 }
 
-func (c *clientBasedResolver) Get(namespace, name string) (*corev1.ConfigMap, error) {
-	cm, err := c.kubeClient.CoreV1().ConfigMaps(namespace).Get(context.Background(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	c.logger.Info(fmt.Sprintf("found configmap %s/%s using client", namespace, name))
-	return cm, nil
+func (c *clientBasedResolver) Get(bgContext context.Context, namespace, name string) (*corev1.ConfigMap, error) {
+	return c.kubeClient.CoreV1().ConfigMaps(namespace).Get(bgContext, name, metav1.GetOptions{})
 }
 
-type ResolverChain []ConfigmapResolver
+type resolverChain []ConfigmapResolver
 
-func NewResolver(resolver ...ConfigmapResolver) ConfigmapResolver {
-	return ResolverChain(resolver)
+func NewResolverChain(resolver ...ConfigmapResolver) ConfigmapResolver {
+	return resolverChain(resolver)
 }
 
-func (r ResolverChain) Get(namespace, name string) (*corev1.ConfigMap, error) {
+func (r resolverChain) Get(bgContext context.Context, namespace, name string) (*corev1.ConfigMap, error) {
+	var (
+		cm  *corev1.ConfigMap
+		err error
+	)
 	for _, resolver := range r {
-		if cm, err := resolver.Get(namespace, name); err == nil {
+		cm, err = resolver.Get(bgContext, namespace, name)
+		if err == nil {
 			return cm, nil
 		}
 	}
-	return nil, errors.New("not found")
+	return nil, err
 }
 ```
 
@@ -169,7 +157,7 @@ resourceHandlers := webhooksresource.NewHandlers(
 
 - get ConfigMap from InformerCacheResolver [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/jsonContext.go#L353)
 ```golang
-	obj, err := ctx.InformerCacheResolver.Get(namespace.(string), name.(string))
+	obj, err := ctx.InformerCacheResolver.Get(context.Background(), namespace.(string), name.(string))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get configmap %s/%s : %v", namespace, name, err)
 	}
