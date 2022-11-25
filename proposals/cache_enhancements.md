@@ -65,16 +65,14 @@ import (
 )
 
 type ConfigmapResolver interface {
-	Get() (*unstructured.Unstructured, error)
+	Get(string, string, logr.Logger) (map[string]interface{}, error)
 }
 
 type InformerBasedResolver struct {
-	// holds an informer cache
-	KubeResourceInformer informers.SharedInformerFactory
+	CMLister corev1listers.ConfigMapLister
 }
 
 type ClientBasedResolver struct {
-	// holds a client
 	DynamicClient dclient.Interface
 }
 
@@ -82,25 +80,24 @@ type ResolverChain []ConfigmapResolver
 
 func NewResolver(kubeResourceInformer informers.SharedInformerFactory, dynamicClient dclient.Interface) ResolverChain {
 	resolver := []ConfigmapResolver{
-		&InformerBasedResolver{KubeResourceInformer: kubeResourceInformer},
+		&InformerBasedResolver{CMLister: kubeResourceInformer.Core().V1().ConfigMaps().Lister()},
 		&ClientBasedResolver{DynamicClient: dynamicClient}}
 	return resolver
 }
 
-func (i *InformerBasedResolver) Get() (*unstructured.Unstructured, error) {
+func (i *InformerBasedResolver) Get(namespace, name string, logger logr.Logger) (map[string]interface{}, error) {
 	// try to lookup from the cache
-    // obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
 	return nil, nil
 }
 
-func (c *ClientBasedResolver) Get() (*unstructured.Unstructured, error) {
+func (c *ClientBasedResolver) Get(namespace, name string, logger logr.Logger) (map[string]interface{}, error) {
 	// try to lookup from the client
 	return nil, nil
 }
 
-func (r ResolverChain) Get() (*unstructured.Unstructured, error) {
+func (r ResolverChain) Get(namespace, name string, logger logr.Logger) (map[string]interface{}, error) {
 	for _, resolver := range r {
-		if cm, err := resolver.Get(); err == nil {
+		if cm, err := resolver.Get(namespace, name, logger); err == nil {
 			return cm, nil
 		}
 	}
