@@ -52,14 +52,12 @@ kubeResourceInformer := informers.NewFilteredSharedInformerFactory(
 
 - Start `kubeResourceInformer` [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/cmd/kyverno/main.go#L527)
 
-- Create new directory `informerCache` inside [this](https://github.com/kyverno/kyverno/tree/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg) directory
-
-- Create new file `cache.go` inside `informerCache` directory with following contents
+- Create new file `informerCache.go` inside [context](https://github.com/kyverno/kyverno/tree/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/context) directory with following contents
 ```golang
-package informerCache
+package context
 
 import (
-	"context"
+	ctx "context"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -68,7 +66,7 @@ import (
 )
 
 type ConfigmapResolver interface {
-	Get(context.Context, string, string) (*corev1.ConfigMap, error)
+	Get(ctx.Context, string, string) (*corev1.ConfigMap, error)
 }
 
 type informerBasedResolver struct {
@@ -81,7 +79,7 @@ func NewInformerBasedResolver(lister corev1listers.ConfigMapLister) ConfigmapRes
 	}
 }
 
-func (i *informerBasedResolver) Get(bgContext context.Context, namespace, name string) (*corev1.ConfigMap, error) {
+func (i *informerBasedResolver) Get(backgoundCtx ctx.Context, namespace, name string) (*corev1.ConfigMap, error) {
 	return i.lister.ConfigMaps(namespace).Get(name)
 }
 
@@ -95,8 +93,8 @@ func NewClientBasedResolver(kubeClient kubernetes.Interface) ConfigmapResolver {
 	}
 }
 
-func (c *clientBasedResolver) Get(bgContext context.Context, namespace, name string) (*corev1.ConfigMap, error) {
-	return c.kubeClient.CoreV1().ConfigMaps(namespace).Get(bgContext, name, metav1.GetOptions{})
+func (c *clientBasedResolver) Get(backgoundCtx ctx.Context, namespace, name string) (*corev1.ConfigMap, error) {
+	return c.kubeClient.CoreV1().ConfigMaps(namespace).Get(backgoundCtx, name, metav1.GetOptions{})
 }
 
 type resolverChain []ConfigmapResolver
@@ -105,26 +103,27 @@ func NewResolverChain(resolver ...ConfigmapResolver) ConfigmapResolver {
 	return resolverChain(resolver)
 }
 
-func (r resolverChain) Get(bgContext context.Context, namespace, name string) (*corev1.ConfigMap, error) {
-	var (
-		cm  *corev1.ConfigMap
-		err error
-	)
+func (r resolverChain) Get(backgoundCtx ctx.Context, namespace, name string) (*corev1.ConfigMap, error) {
+	// if CM is not found in informer cache, error will be stored in
+	// lastErr variable and resolver chain will try to get CM using
+	// Kubernetes client
+	var lastErr error
 	for _, resolver := range r {
-		cm, err = resolver.Get(bgContext, namespace, name)
+		cm, err := resolver.Get(backgoundCtx, namespace, name)
 		if err == nil {
 			return cm, nil
 		}
+		lastErr = err
 	}
-	return nil, err
+	return nil, lastErr
 }
 ```
 
 - Initialise interface and pass object to webhooks handlers on [line](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/cmd/kyverno/main.go#L630)
 ```golang
-cacheResolvers := informerCache.NewResolver(
-    informerCache.NewInformerBasedResolver(kubeResourceInformer.Core().V1().ConfigMaps().Lister(), logger),
-    informerCache.NewClientBasedResolver(kubeClient, logger),
+cacheResolvers := engineContext.NewResolverChain(
+    engineContext.NewInformerBasedResolver(kubeResourceInformer.Core().V1().ConfigMaps().Lister()),
+    engineContext.NewClientBasedResolver(kubeClient),
 )
 resourceHandlers := webhooksresource.NewHandlers(
     dClient,
