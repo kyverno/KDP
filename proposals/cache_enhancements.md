@@ -2,7 +2,7 @@
 [meta]: #meta
 - Name: Enable cache with informers for kubernetes resources
 - Start Date: 2022-11-23
-- Author(s): shahpratikr
+- Author(s): shahpratikr, eddycharly
 - Supersedes: N/A
 
 # Table of Contents
@@ -37,126 +37,66 @@ When CM is used as a context variable or while mutating variables, Kyverno needs
 
 # Proposal
 
-- Initialise new filtered informer at [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/cmd/kyverno/main.go#L473)
+- Initialise new informer and create resolver chain for config map lister and kubeclient at [here](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/cmd/kyverno/main.go#L410)
 ```golang
-// this label need to be hard-coded as at this point we don't have any resource to get this value from
-labelsMap := map[string]string{"cache.kyverno.io/enabled": "true"}
-labelSelector := labels.Set(labelsMap).AsSelector().String()
-kubeResourceInformer := informers.NewFilteredSharedInformerFactory(
-    kubernetesClientSet, 10*time.Minute, "", func(l0 *metav1.ListOptions) {
-        // setting kind here is optional, if we don't provide it, all resources which have labels will be cached
-        l0.Kind = "ConfigMap"
-        l0.LabelSelector = labelSelector
-    })
+	cacheInformer, err := resolvers.GetCacheInformerFactory(kubeClient, resyncPeriod)
+	if err != nil {
+		logger.Error(err, "failed to create cache informer factory")
+		os.Exit(1)
+	}
+	informerBasedResolver, err := resolvers.NewInformerBasedResolver(cacheInformer.Core().V1().ConfigMaps().Lister())
+	if err != nil {
+		logger.Error(err, "failed to create informer based resolver")
+		os.Exit(1)
+	}
+	clientBasedResolver, err := resolvers.NewClientBasedResolver(kubeClient)
+	if err != nil {
+		logger.Error(err, "failed to create client based resolver")
+		os.Exit(1)
+	}
+	configMapResolver, err := resolvers.NewResolverChain(informerBasedResolver, clientBasedResolver)
+	if err != nil {
+		logger.Error(err, "failed to create config map resolver")
+		os.Exit(1)
+	}
 ```
 
-- Start `kubeResourceInformer` [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/cmd/kyverno/main.go#L527)
+- Start `cacheInformer` [here](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/cmd/kyverno/main.go#L462) and [here](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/cmd/kyverno/main.go#L610)
 
-- Create new file `informerCache.go` inside [context](https://github.com/kyverno/kyverno/tree/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/context) directory with following contents
+- Pass `configMapResolver` object to webhooks handlers on [line](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/cmd/kyverno/main.go#L572)
 ```golang
-package context
-
-import (
-	ctx "context"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	corev1listers "k8s.io/client-go/listers/core/v1"
-)
-
-type ConfigmapResolver interface {
-	Get(ctx.Context, string, string) (*corev1.ConfigMap, error)
-}
-
-type informerBasedResolver struct {
-	lister corev1listers.ConfigMapLister
-}
-
-func NewInformerBasedResolver(lister corev1listers.ConfigMapLister) ConfigmapResolver {
-	return &informerBasedResolver{
-		lister: lister,
-	}
-}
-
-func (i *informerBasedResolver) Get(backgoundCtx ctx.Context, namespace, name string) (*corev1.ConfigMap, error) {
-	return i.lister.ConfigMaps(namespace).Get(name)
-}
-
-type clientBasedResolver struct {
-	kubeClient kubernetes.Interface
-}
-
-func NewClientBasedResolver(kubeClient kubernetes.Interface) ConfigmapResolver {
-	return &clientBasedResolver{
-		kubeClient: kubeClient,
-	}
-}
-
-func (c *clientBasedResolver) Get(backgoundCtx ctx.Context, namespace, name string) (*corev1.ConfigMap, error) {
-	return c.kubeClient.CoreV1().ConfigMaps(namespace).Get(backgoundCtx, name, metav1.GetOptions{})
-}
-
-type resolverChain []ConfigmapResolver
-
-func NewResolverChain(resolver ...ConfigmapResolver) ConfigmapResolver {
-	return resolverChain(resolver)
-}
-
-func (r resolverChain) Get(backgoundCtx ctx.Context, namespace, name string) (*corev1.ConfigMap, error) {
-	// if CM is not found in informer cache, error will be stored in
-	// lastErr variable and resolver chain will try to get CM using
-	// Kubernetes client
-	var lastErr error
-	for _, resolver := range r {
-		cm, err := resolver.Get(backgoundCtx, namespace, name)
-		if err == nil {
-			return cm, nil
-		}
-		lastErr = err
-	}
-	return nil, lastErr
-}
+	resourceHandlers := webhooksresource.NewHandlers(
+		dClient,
+		kyvernoClient,
+		configuration,
+		metricsConfig,
+		policyCache,
+		configMapResolver,  <-- new parameter
+		kubeInformer.Core().V1().Namespaces().Lister(),
+		kubeInformer.Rbac().V1().RoleBindings().Lister(),
+		kubeInformer.Rbac().V1().ClusterRoleBindings().Lister(),
+		kyvernoInformer.Kyverno().V1beta1().UpdateRequests().Lister().UpdateRequests(config.KyvernoNamespace()),
+		urgen,
+		eventGenerator,
+		openApiManager,
+		admissionReports,
+	)
 ```
 
-- Initialise interface and pass object to webhooks handlers on [line](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/cmd/kyverno/main.go#L630)
+- Create new package `resolvers` inside [context](https://github.com/kyverno/kyverno/tree/5244730f7aef36961518feb57fb837050562a88d/pkg/engine/context) directory which will create an interface `NamespacedResourceResolver` needed to implement resolver chain. This resolver chain will have informer based resolver and Kubernetes client based resolver.
+
+- Pass `configMapResolver` variable to policy builder [here](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/pkg/webhooks/resource/handlers.go#L91)
+
+
+- Add and initialize `InformerCacheResolvers` at following places
+	- [PolicyContext struct](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/pkg/engine/policyContext.go#L44)
+	- [PolicyContext Copy](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/pkg/engine/policyContext.go#L57)
+	- [PolicyContext builder](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/pkg/webhooks/utils/policy_context_builder.go#L40)
+	- [PolicyContext build](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/pkg/webhooks/utils/policy_context_builder.go#L86)
+
+- Get ConfigMap using InformerCacheResolvers [here](https://github.com/kyverno/kyverno/blob/5244730f7aef36961518feb57fb837050562a88d/pkg/engine/jsonContext.go#L354)
 ```golang
-cacheResolvers := engineContext.NewResolverChain(
-    engineContext.NewInformerBasedResolver(kubeResourceInformer.Core().V1().ConfigMaps().Lister()),
-    engineContext.NewClientBasedResolver(kubeClient),
-)
-resourceHandlers := webhooksresource.NewHandlers(
-    dClient,
-    kyvernoClient,
-    configuration,
-    metricsConfig,
-    policyCache,
-    cacheResolvers,  <-- added variable
-    kubeInformer.Core().V1().Namespaces().Lister(),
-    kubeInformer.Rbac().V1().RoleBindings().Lister(),
-    kubeInformer.Rbac().V1().ClusterRoleBindings().Lister(),
-    kyvernoInformer.Kyverno().V1beta1().UpdateRequests().Lister().UpdateRequests(config.KyvernoNamespace()),
-    urgen,
-    eventGenerator,
-    openApiManager,
-    admissionReports,
-)
-```
-
-- add `informerCacheResolver` variable in [handlers struct](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/handlers.go#L47)
-
-- add `informerCacheResolver` in policyContext at following places.
-    - [validate](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/handlers.go#L127)
-    - [mutate](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/handlers.go#L169)
-    - [mutate](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/webhooks/resource/handlers.go#L186)
-    
-    NOTE: we are adding `informerCacheResolver` in policyContext as only policyContext is passed to some functions in image verify process. If we add this as a separate parameter, we might have to make lot of changes.
-
-- add `InformerCacheResolver` [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/policyContext.go#L44)
-
-- get ConfigMap from InformerCacheResolver [here](https://github.com/kyverno/kyverno/blob/925f0cf182c74fbf23f5d974cafeb0f05f7292bf/pkg/engine/jsonContext.go#L353)
-```golang
-	obj, err := ctx.InformerCacheResolver.Get(context.Background(), namespace.(string), name.(string))
+	obj, err := ctx.InformerCacheResolvers.Get(context.TODO(), namespace.(string), name.(string))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get configmap %s/%s : %v", namespace, name, err)
 	}
@@ -172,7 +112,7 @@ N/A
 
 ## Link to the Implementation PR
 
-N/A
+[Kyverno PR](https://github.com/kyverno/kyverno/pull/5484/)
 
 # Migration (OPTIONAL)
 
@@ -192,8 +132,7 @@ N/A
 
 # Unresolved Questions
 
-- Do we want to always use cache when CMs are declared in context variable?
-- Do we need a separate way to use cached data in a policy rule directly?
+N/A
 
 # CRD Changes (OPTIONAL)
 
