@@ -44,21 +44,27 @@ Finally, in some scenarios 3rd party library code or binaries need to be execute
 
 # Proposal
 
-This feature enables:
-- HTTP GET and POST API calls to any service
-- Encryption and server authentication using a certificate bundle
-- Client authentication using Service Account token volume projection 
-- Passing context data to the external service
-- Applying JMESPath transformation to the results
-- Storing service API call results in the rule context for further processing
+A minimal (Phase 1) implementaion of this feature will enable:
+1. HTTP GET and POST API calls to any service
+2. Encryption and server authentication using a certificate bundle
+3. Client authentication using a bearer token, configured via the Kubernetes service account token volume projection feature, in the HTTP Authorization header. This allows the server to use the [Token Review API](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-review-v1/) to authenticate requests from Kyverno.
+4. Passing context data to the external service
+5. Applying JMESPath transformation to the results
+6. Storing service API call results in the rule context for further processing
+
+Future enhancements can include:
+1. Support for additional authentication methods (mTLS, Basic auth, etc.)
+2. Configuring HTTP headers
+3. Simplifying passing data as URL query parameters
+4. Configuring connection retries, timeouts, etc.
+5. Additional connection config e.g. insecureSkipSSLVerify 
 
 # Implementation
 
 Here are the changes involved:
-1. Add a new `service` to the existing `APICall` declaration, to allow specifying information like the URL and CA bundle. The existing `
+1. Add a new `service` to the existing `APICall` declaration, to allow specifying information like the URL and CA bundle. The existing `urlPath` and `jmesPath` fields will stay.
 2. Update the logic to handle APICall to check whether a `urlPath` is configured to invoke the API server. Otherwise, process the `service` declaration to execute an HTTP GET or POST to the JSON web service.
 3. Apply the JMESPath (if specified) to the results and store in context, as before. 
-
 
 ## CRD Changes
 
