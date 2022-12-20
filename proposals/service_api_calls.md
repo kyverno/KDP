@@ -27,6 +27,8 @@
 
 Support HTTP/S GET and POST calls to JSON web services.
 
+Initial proposal at: https://github.com/kyverno/KDP/issues/14.
+
 # Definitions
 [definitions]: #definitions
 
