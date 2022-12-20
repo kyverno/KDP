@@ -50,7 +50,7 @@ A minimal (Phase 1) implementaion of this feature will enable:
 3. Client authentication using a bearer token, configured via the Kubernetes service account token volume projection feature, in the HTTP Authorization header. This allows the server to use the [Token Review API](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-review-v1/) to authenticate requests from Kyverno.
 4. Passing context data to the external service
 5. Applying JMESPath transformation to the results
-6. Storing service API call results in the rule context for further processing
+6. Storing service API call results (the JSON response body) in the rule context for further processing. The data is stored only if a 2xx HTTP status code is returned. Errors in parsing the data, will result in a policy rule error.
 
 Future enhancements can include:
 1. Support for additional authentication methods (mTLS, Basic auth, etc.)
@@ -58,6 +58,7 @@ Future enhancements can include:
 3. Simplifying passing data as URL query parameters
 4. Configuring connection retries, timeouts, etc.
 5. Additional connection config e.g. insecureSkipSSLVerify 
+6. Configuring a failurePolicy for the API call
 
 # Implementation
 
