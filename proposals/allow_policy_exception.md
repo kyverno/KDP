@@ -37,7 +37,8 @@ These pain points are well ariculated in the following GitHub issue and discussi
 
 ## Proposed Solution
 
-Considering different organizations may have different requirement on the `request-response` workflow, we may discuss this part further.
+Considering different organizations may have different requirement on the `request-response` workflow, we decided to allow admins to manage the approval process using existing tools, such as GitOps, RBAC, or signing.
+
 For the first version, We would mainly focus on how Kyverno would deal with those exceptions.
 
 A new CRD `PolicyException` would be introduced:
@@ -50,30 +51,75 @@ The scope can either be namespaced / cluster-wide.
 `PolicyException` sample:
 
 ```yaml
+apiVersion: kyverno.io/v2alpha1
+kind: PolicyException
+metadata:
+  name: bypass-test-deployment
+  namespace: kyverno
 spec:
   exceptions:
-    - policyName: DisallowLatestTag
+    - policyName: require-labels
       ruleNames:
-        - DisallowLatestImageTagForMainContainer
-        - DisallowLatestImageTagForInitContainer
-    - policyName: ValidateLabelling
-      ruleNames:
-        - ValidateLabellingBestPractices
-        - ValidateLabellingForCompany
-  exclude:
+        - check-for-labels
+        - autogen-check-for-labels
+  match:
     any:
       - resources:
           kinds:
+            - Deployment
+          names:
+            - nginx
+          namespaces:
+            - default
+      - resources:
+          kinds:
             - Pod
+          namespaces:
+            - default
+          selector:
+            matchLabels:
+              app: nginx
 ```
+
+Corresponding ClusterPolicy:
+
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-labels
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: check-for-labels
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "label 'app.kubernetes.io/name' is required"
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+```
+
+**Notice**: We recommend users to specify one policy in each exception manifest. This would avoid potential logic error.
+
+Due to the autogen machanism of kyverno, users may need to specify additional rules (such as `autogen-check-for-labels`). The admission webhook denial log can be referred.
 
 ## Implementation Notes
 
-We will introduce a new new CRD: `PolicyException`.
+We will introduce a new CRD: `PolicyException`.
 
-Kyverno Informer would get these `PolicyException` and cache them.
+Kyverno would check if there is a matching `PolicyException` when validate / mutate / generate / imageVerify for each rule.
 
-The engine validation would get those exclude resources and their corresponding rules in the exception. Then add them to the policy rule `exclude` for the following logic.
+If there is a matching exception, the rule status would be set as `skip` when building the rule response.
+
+If there is no matching exception, the rule response would be nil.
+
+If there is an error, the rule status would be set as `error` and report.
 
 ## Alternative Solution
 
