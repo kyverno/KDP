@@ -117,7 +117,7 @@ FIELDS:
    data <[]Object>
      Data specifies the POST data sent to the server.
 
-   requestType  <string> -required-
+   method <string> -required-
      method is the HTTP request method (GET or POST).
 
    urlPath      <string> -required-
