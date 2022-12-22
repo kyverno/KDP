@@ -118,7 +118,7 @@ FIELDS:
      Data specifies the POST data sent to the server.
 
    requestType  <string> -required-
-     RequestType is the HTTP request type (GET or POST).
+     method is the HTTP request method (GET or POST).
 
    urlPath      <string> -required-
      URL is the JSON web service URL. The typical format is
