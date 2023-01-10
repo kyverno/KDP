@@ -57,7 +57,7 @@ Here is a list of the current top-level Kyverno components:
 | Policy Controller | Processes policy changes |
 | Cleanup Controller | Processes cleanup policy related admission requests |
 
-**Note**: other components like the webhook monitor, cetificate manager, policy cache, are not mentioned here as they are they are helpers to a top-level component.
+**Note**: other components like the webhook monitor, cetificate manager, policy cache, are not mentioned here as they are helpers to a top-level component.
 
 
 ### Deciding when to split
