@@ -37,7 +37,7 @@ Make a list of the definitions that may be useful for those reviewing. Include p
 Here are some reasons why we are considering splitting a Kyverno installation into multiple components:
 - Eliminate (or greatly reduce) client-side throttling during processing of admission requests in the webhook
 - Allow independent sizing and scaling of components. For example, some components operate active-active while others operate using a leader-election. Hence, separating these makes sense.
-- Enhance security by limiting permissions for each component. This may not be a main driver, but is inteesting to consider.
+- Enhance security by limiting permissions for each component. This may not be a main driver, but is interesting to consider.
 
 # Minimal requirements for a release
 
