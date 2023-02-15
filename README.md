@@ -6,28 +6,28 @@ Older proposals were managed in documents. All new proposals should be submitted
 
 ## Active Proposals
 
-| Name              | Status    | Release |
-|------------------ | --------- | ------- |
-| [Foreach](https://docs.google.com/document/d/1oZpbhjp6fJMO8KOdtNcaGWTt3DJMioHapQeVRxf8vms/edit) | Implemented | 1.5 |
-| [Dynamic Webhooks](https://docs.google.com/document/d/1Y7_7ow4DgCLyCFQcFVz1vHclghazAKZyolIfprtNURc/edit) | Implemented | 1.5 |
-| [Image Signature Verification](https://docs.google.com/document/d/1d2Qm47wjjoyGDT8v3_ijB1Q4mGYV5cncAQoQniiR414/edit#heading=h.s8qsd3dl8lqi) | Implemented | 1.6 |
-| [Image Attestations ](https://docs.google.com/document/d/1d2Qm47wjjoyGDT8v3_ijB1Q4mGYV5cncAQoQniiR414/edit#heading=h.s8qsd3dl8lqi) | Implemented | 1.6 |
-| [Internal Auto-Gen Rules](https://docs.google.com/document/d/1kEST03WoGC2mUIz-rGbZkhQxU2F6n_CbwAkzIlhRdns/edit#heading=h.k9m35w1krgjl) | Implemented | 1.7 |
-| [Generate on existing](https://docs.google.com/document/d/1KHf19cV5o8fWWC78OBl3H1-OETRuzHciEEBTfRFfMUU/edit) | Implemented | 1.7 |
-| [Mutate on existing](https://github.com/kyverno/KDP/pull/4) | Implemented| 1.7 |
-| [CLI test generate policies ](https://github.com/kyverno/KDP/pull/6) | Implemented  | 1.7 |
-| [Image Verification Refectoring](https://github.com/kyverno/KDP/blob/main/proposals/image_verify_enhancements.md) | Implemented | 1.7 |
-| [Extending Pod Security Admission](/proposals/extend_pod_security_admission.md) | Implemented | 1.8 |
-| [YAML Signing and Verification](/proposals/yaml_signing_and_verification.md) | Implemented | 1.8 |
-| [Report Aggregation](https://github.com/kyverno/KDP/pull/32) | Implemented | 1.8 |
-| [Store Kyverno policies in OCI registries](https://docs.google.com/document/d/15cqD4HPecI5Uv2u1Yfg0JCgWDVi2HLwGZPvTX_48W2E/edit?usp=sharing) | Implemented | 1.9 |
-| [Policy Exceptions](https://github.com/kyverno/KDP/pull/33) | In Review | 1.9 |
-| [ConfigMap cache enhancement with Informers](/proposals/cache_enhancements.md) | Implemented | 1.9 |
+| Name                                                                                                                                         | Status      | Release |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------- |
+| [Foreach](https://docs.google.com/document/d/1oZpbhjp6fJMO8KOdtNcaGWTt3DJMioHapQeVRxf8vms/edit)                                              | Implemented | 1.5     |
+| [Dynamic Webhooks](https://docs.google.com/document/d/1Y7_7ow4DgCLyCFQcFVz1vHclghazAKZyolIfprtNURc/edit)                                     | Implemented | 1.5     |
+| [Image Signature Verification](https://docs.google.com/document/d/1d2Qm47wjjoyGDT8v3_ijB1Q4mGYV5cncAQoQniiR414/edit#heading=h.s8qsd3dl8lqi)  | Implemented | 1.6     |
+| [Image Attestations ](https://docs.google.com/document/d/1d2Qm47wjjoyGDT8v3_ijB1Q4mGYV5cncAQoQniiR414/edit#heading=h.s8qsd3dl8lqi)           | Implemented | 1.6     |
+| [Internal Auto-Gen Rules](https://docs.google.com/document/d/1kEST03WoGC2mUIz-rGbZkhQxU2F6n_CbwAkzIlhRdns/edit#heading=h.k9m35w1krgjl)       | Implemented | 1.7     |
+| [Generate on existing](https://docs.google.com/document/d/1KHf19cV5o8fWWC78OBl3H1-OETRuzHciEEBTfRFfMUU/edit)                                 | Implemented | 1.7     |
+| [Mutate on existing](https://github.com/kyverno/KDP/pull/4)                                                                                  | Implemented | 1.7     |
+| [CLI test generate policies ](https://github.com/kyverno/KDP/pull/6)                                                                         | Implemented | 1.7     |
+| [Image Verification Refectoring](https://github.com/kyverno/KDP/blob/main/proposals/image_verify_enhancements.md)                            | Implemented | 1.7     |
+| [Extending Pod Security Admission](/proposals/extend_pod_security_admission.md)                                                              | Implemented | 1.8     |
+| [YAML Signing and Verification](/proposals/yaml_signing_and_verification.md)                                                                 | Implemented | 1.8     |
+| [Report Aggregation](https://github.com/kyverno/KDP/pull/32)                                                                                 | Implemented | 1.8     |
+| [Store Kyverno policies in OCI registries](https://docs.google.com/document/d/15cqD4HPecI5Uv2u1Yfg0JCgWDVi2HLwGZPvTX_48W2E/edit?usp=sharing) | Implemented | 1.9     |
+| [Policy Exceptions](https://github.com/kyverno/KDP/pull/33)                                                                                  | Implemented | 1.9     |
+| [ConfigMap cache enhancement with Informers](/proposals/cache_enhancements.md)                                                               | Implemented | 1.9     |
 
 ## Inactive Proposals
 
-| Name              | Status    |
-|------------------ | --------- |
+| Name                                                                                                | Status   |
+| --------------------------------------------------------------------------------------------------- | -------- |
 | [SBOM Policy](https://docs.google.com/document/d/1AoaSfJwo6XyAuFZCK4wc4bjiPajdCIEJ9lctS1a8A5Y/edit) | Rejected |
 
 ## KDP Process
