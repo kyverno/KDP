@@ -132,6 +132,7 @@ The following alternatives were considered when picking the OCI client. and here
 **Positives**
 - It is the most popular library of all.
 - Has direct support for fetching referrers.
+
 **Negatives**
 - The referrers method doesn’t work properly for all the providers
   Oras discover shows the artifacts properly while regctl returns nothing
