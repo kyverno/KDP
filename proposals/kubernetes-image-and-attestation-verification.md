@@ -140,6 +140,7 @@ The following alternatives were considered when picking the OCI client. and here
 **Negatives**
 - The referrers method doesn’t work properly for all the providers
   Oras discover shows the artifacts properly while regctl returns nothing
+  
   ```bash
   » regctl artifact list jimnotarytest.azurecr.io/jim/net-monitor:v1                                                                 
   Subject:   jimnotarytest.azurecr.io/jim/net-monitor:v1
