@@ -50,7 +50,7 @@ The goal of this proposal is to improve the image verification in kyverno to hav
 
 # Proposal
 
-Currently Kyverno Notary and Cosign for software supply chain security validation policies. We fetch image signature definitions from an OCI compliant registry using ORAS client and run signature validation checks. The signature is in NotaryV2 or Cosign format.
+Currently Kyverno uses Notary and Cosign for software supply chain security validation policies. We fetch image signature definitions from an OCI compliant registry using ORAS client and run signature validation checks. The signature is in NotaryV2 or Cosign format.
 
 We fetch attestations (signed metadata) using [ORAS](https://pkg.go.dev/oras.land/oras-go/v2) Client stored with the image to run signature and data validation checks as defined by the policy. The notary signature verification also uses ORAS repository implementataion for its verification method. 
 
@@ -61,8 +61,8 @@ Our current Authentication system works but it is not perfect and as robust as o
 Also we are dependent on ORAS as well as Crane at the same time. Both library serve the same purpose of communicating with OCI registries and have very similar methods.
 
 This Proposal proposes the following:
-1. Creating an inhouse implementation Notary repository which uses crane instead of ORAS to remove the indirect dependency on ORAS.
-2. Use crane instead of ORAS to fetch attestations and predecates.
+1. Create an inhouse implementation Notary repository which uses crane instead of ORAS to remove the indirect dependency on ORAS.
+2. Use crane instead of ORAS to fetch attestations and predicates.
 3. Update the authentication to support Azure, AWS, GCP or use [Flux Auth](https://pkg.go.dev/github.com/fluxcd/pkg/oci/auth@v0.23.0) package, which implements crane.
 
 # Implementation
@@ -89,10 +89,10 @@ type Repository interface {
 }
 ```
 All these methods in [Notary's implementation](https://github.com/notaryproject/notation-go/blob/v1.0.0-rc.4/registry/repository.go) currently use ORAS.
-Here is the implementation of all these functions using crane: https://github.com/Vishal-Chdhry/kyverno/blob/notary-v2-attestations/pkg/notary/repository.go
+Here is the implementation of all these functions using crane: https://gist.github.com/Vishal-Chdhry/74dcf98df56aed4f900496847de210bb
 
 ### Use crane instead of ORAS to fetch attestations and predecates
-Here is the implementation of `FetchAttestation` method using crane: https://github.com/Vishal-Chdhry/kyverno/blob/notary-v2-attestations/pkg/notary/notary.go#L138
+Here is the implementation of `FetchAttestation` method using crane: https://gist.github.com/Vishal-Chdhry/a751b237ef8df6a68faff5056d3ea810#file-notary-go-L133
 
 ### Update the authentication method
 The Flux OCI client uses crane and SDK of various providers for its authentication methods: https://github.com/fluxcd/pkg/blob/oci/v0.23.0/oci/client/login.go
@@ -116,7 +116,7 @@ We recieve error `"code":"MANIFEST_UNKNOWN","message":"OCI artifact found, but a
 
 # Alternatives
 
-The following alternatives were considered when picking the OCI client. and here are the findings
+The following alternatives were considered when picking the OCI client. And here are the findings.
 #### ORAS Client
 **Positives**
 - Has a method for fetching manifests, and referrers, it is the approach we are using right now.
