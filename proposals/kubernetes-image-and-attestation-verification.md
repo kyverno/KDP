@@ -43,11 +43,6 @@ This proposal aims alter the approach we use for fetching image attestation and 
 
 # Motivation
 [motivation]: #motivation
-
-- Why should we do this?
-- What use cases does it support?
-- What is the expected outcome?
-
 The goal of this proposal is to improve the image verification in kyverno to have 
 1. Less number of overall dependencies for improved security and maintainability.
 2. A robust authentication system with direct support for GCP, AWS, Azure.
@@ -140,7 +135,7 @@ The following alternatives were considered when picking the OCI client. and here
 **Negatives**
 - The referrers method doesn’t work properly for all the providers
   Oras discover shows the artifacts properly while regctl returns nothing
-  
+
   ```bash
   » regctl artifact list jimnotarytest.azurecr.io/jim/net-monitor:v1                                                                 
   Subject:   jimnotarytest.azurecr.io/jim/net-monitor:v1
