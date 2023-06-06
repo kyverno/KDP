@@ -41,7 +41,7 @@ Here are some reasons why we are considering splitting a Kyverno installation in
 
 # Minimal requirements for a release
 
-The main goal for an initial implementation is to separate all background processing from the webhook processing, to eliminate throttling and allow scaling the webhook to 
+The main goal for an initial implementation is to separate all background processing from the webhook processing, to eliminate throttling and allow scaling the admission controller.
 
 # Proposal
 
