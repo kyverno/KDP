@@ -46,15 +46,15 @@ There are two main use cases associated with this.
 
 In this proposal, Kyverno may function as a clean-up controller allowing it to identify and scavenge resources. There are two proposed capabilities which would be used to effect a clean-up.
 
-1. Use of two specific annotations which may be set on any resource:
-   - `kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the annotated resource was either created or when the annotation was assigned. Value is a string and units are given in either minutes, hours, or days. Ex., `kyverno.io/ttl: 30m`, `kyverno.io/ttl: 30d`
+1. Use of two specific labels which may be set on any resource:
+   - `kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the annotated resource was either created or when the label was assigned. Value is a string and units are given in either minutes, hours, or days. Ex., `kyverno.io/ttl: 30m`, `kyverno.io/ttl: 30d`
    - `kyverno.io/expires`: Sets the absolute date and time at which clean-up should proceed. Must conform to ISO 8601 standards. Ex., `kyverno.io/expires: 2022-08-04T00:30:00Z`, `kyverno.io/expires: 2022-09-30` 
 2. Use of a new rule type tentatively called `cleanup` which will execute in background mode on a schedule given in cron format. The rule will reuse existing Kyverno policy expression paradigms and capabilities to minimize introduced complexity.
 
 The functional requirements of both capabilities are defined below.
 
 ```
-1. Annotations:
+1. Labels:
     a. kyverno.io/ttl
         i. must support minimally 1m. No seconds. Duration units are m, h, or d.
         ii. Must allow both assignment to new (incoming) resources as well as assignment to existing resources
@@ -70,15 +70,15 @@ The functional requirements of both capabilities are defined below.
     c. General:
         i. Must log clean-up of any and all resources in, minimally, the Kyverno log
         ii. Must support clean-up of both Namespaced and cluster-scoped resources (including custom)
-        iii. Must only pay attention to these defined annotations (i.e., user cannot define a custom annotation as a replacement for these built-in, special Kyverno annotations)
-        iv. If both ttl and expires are specified, either Kyverno ignores the resource or it operates on the sooner of the two. Validate policy may be written which alternatively prevents this condition (account for both creation and updating a resource to add the second annotation)
+        iii. Must only pay attention to these defined labels (i.e., user cannot define a custom label as a replacement for these built-in, special Kyverno labels)
+        iv. If both ttl and expires are specified, either Kyverno ignores the resource or it operates on the sooner of the two. Validate policy may be written which alternatively prevents this condition (account for both creation and updating a resource to add the second label)
 2. Rule:
     a. Must support definition in both Policy and ClusterPolicy resources.
     b. Must support a cron-style schedule around which field validation must be placed (ex., ensuring it uses only a desired subset of the total cron functionality; ensuring it does not run too frequently; etc.)
     c. Must only work in background mode and therefore must ensure background=true for this rule type
     d. Must use existing Kyverno match/exclude and other policy authoring mechanisms to define logic
     e. Must support clean-up of both Namespaced and cluster-scoped resources (including custom)
-    f. Must only clean up resources which have neither ttl nor expires annotations assigned
+    f. Must only clean up resources which have either ttl or expires labels assigned
     g. Must show, in some mechanism OTHER THAN the Kyverno log, any and all resources cleaned up by this rule. This should be at least events written to the policy containing the rule responsible for the clean up action.
     h. Must support testing in the Kyverno CLI
     i. Should be capable of checking and reporting, as a warning back to the user at time of policy creation, if Kyverno does not possess the necessary permissions to clean up the resources as defined in the rule's match block.
@@ -90,7 +90,7 @@ The functional requirements of both capabilities are defined below.
 In order to solve for the need of users to introspect an existing cluster to determine which resources may be effected by either or both capability, the following CLI use cases must be solved for.
 
 ```
-CLI Solutions for Annotations Use Case
+CLI Solutions for Labels Use Case
 
 	• Although most, if not all, of these could be answered with a direct JMESPath query, the CLI could offer a better UX to users but would still internally result in JMESPath queries against the Kubernetes API server.
 	• Command may be `kyverno cleanup <inputs>`
@@ -186,14 +186,14 @@ spec:
 These new proposed clean-up abilities would be assisted/augmented by Kyverno's present ability to mutate and validate resources. Some example use cases of Kyverno's present abilities which can be assistative are shown below.
 
 * The desired criteria may be codified into a mutate policy allowing Kyverno to assign the requisite annotation.
-    * Ex., write the ttl annotation to all Deployments in the foo Namespace
-* A validate policy may be constructed to prevent tampering with the annotation once a resource has been created with it assigned.
+    * Ex., write the ttl label to all Deployments in the foo Namespace
+* A validate policy may be constructed to prevent tampering with the label once a resource has been created with it assigned.
     * Ex., block changes to or removals of ttl and/or expires
-* A validate policy may be constructed to prevent the use of a cleanup annotation based upon certain criteria.
-    * Ex., prevent the use of either annotation for the foo Role
+* A validate policy may be constructed to prevent the use of a cleanup label based upon certain criteria.
+    * Ex., prevent the use of either label for the foo Role
 * A validate policy may be constructed preventing both the use of kyverno.io/ttl and kyverno.io/expires from being set on the same resource.
     * Ex., block a resource if it has both ttl and expires set
-* A validate policy may be written to enforce certain formatting/standards for these annotations
+* A validate policy may be written to enforce certain formatting/standards for these labels
     * Ex., ttl does not attempt to use seconds
     * Ex., ttl cannot be greater than 90 days
     * Ex., expires uses the correct time format
@@ -209,7 +209,7 @@ A couple implementations have been suggested for the annotation/label methodolog
 
 1. Kyverno could leverage either the existing UpdateRequest (UR) CR (with modifications) in order to support a type of "ledger" to know when to remove resources. The benefit of this approach is that it doesn't require any new CR and CRD to be invented and reduces complexity. The potential downside is the UR may not be suitable for such a job without significant modifications.
 
-2. Kyverno could create a new CR specifically for this clean-up use case. As resources come in with either annotation, the CR can be updated with the clean-up time. Kyverno would manage this CR as it does other CRs. The benefit of this approach is we can craft a CR exactly as needed to fit this purpose. The potential downside is it is more work and more complexity.
+2. Kyverno could create a new CR specifically for this clean-up use case. As resources come in with either label, the CR can be updated with the clean-up time. Kyverno would manage this CR as it does other CRs. The benefit of this approach is we can craft a CR exactly as needed to fit this purpose. The potential downside is it is more work and more complexity.
 
 ## Existing Kubernetes Constructs
 
@@ -261,13 +261,13 @@ N/A
 
 # Unresolved Questions
 
-1. How should Pods be handled if either the annotation is set directly on them (and not its controller) or if the rule is written which targets Pods? For the rule, should it only clean-up Pods if they do not specify an owner? Or should we prevent this rule from being created in the first place? Should we leave this as docs guidance instead?
+1. How should Pods be handled if either the label is set directly on them (and not its controller) or if the rule is written which targets Pods? For the rule, should it only clean-up Pods if they do not specify an owner? Or should we prevent this rule from being created in the first place? Should we leave this as docs guidance instead?
 
-2. Kyverno resources (policies, reports, URs, etc.) themselves should either not permit being annotated with the ttl or expires annotation or, alternatively, Kyverno should ignore such annotations on its own resources to prevent them from being cleaned up.
+2. Kyverno resources (policies, reports, URs, etc.) themselves should either not permit being labelled with the ttl or expires label or, alternatively, Kyverno should ignore such labels on its own resources to prevent them from being cleaned up.
 
 3. Because cleanup rules may naturally require scanning the entire cluster, care should be taken to ensure, for large to huge clusters, this does not overwhelm Kyverno and result in excess processing which may cause failures in other areas. It may be prudent for such cleanup rules, which should run in background only mode, to be processed in chunks and at lower internal priority.
 
-4. If a Kyverno generate rule is written which uses a `data` type and a user specifies it should also write either the ttl or expires annotation, the user must set synchronize: false or else Kyverno must block the rule from being created.
+4. If a Kyverno generate rule is written which uses a `data` type and a user specifies it should also write either the ttl or expires label, the user must set synchronize: false or else Kyverno must block the rule from being created.
 
 # CRD Changes (OPTIONAL)
 
