@@ -55,13 +55,13 @@ The functional requirements of both capabilities are defined below.
 
 ```
 1. Labels:
-    a. kyverno.io/ttl
+    a. cleanup.kyverno.io/ttl
         i. must support minimally 1m. No seconds. Duration units are m, h, or d.
         ii. Must allow both assignment to new (incoming) resources as well as assignment to existing resources
         iii. Must allow alteration after the fact
         iv. Must allow deletion to cancel the future clean-up action
         v. Must provide mechanism by which cluster operator (Kyverno CLI) can query across a cluster and return all resources which will be cleaned up
-    b. kyverno.io/expires
+    b. cleanup.kyverno.io/expires
         i. Must support absolute time in future in at least one standardized time format (ISO 8601 recommended)
         ii. Must allow both assignment to new (incoming) resources as well as assignment to existing resources
         iii. Must allow alteration after the fact
@@ -188,10 +188,10 @@ These new proposed clean-up abilities would be assisted/augmented by Kyverno's p
 * The desired criteria may be codified into a mutate policy allowing Kyverno to assign the requisite annotation.
     * Ex., write the ttl label to all Deployments in the foo Namespace
 * A validate policy may be constructed to prevent tampering with the label once a resource has been created with it assigned.
-    * Ex., block changes to or removals of ttl and/or expires
+    * Ex., block changes to or removals of ttl or expires
 * A validate policy may be constructed to prevent the use of a cleanup label based upon certain criteria.
     * Ex., prevent the use of either label for the foo Role
-* A validate policy may be constructed preventing both the use of kyverno.io/ttl and kyverno.io/expires from being set on the same resource.
+* A validate policy may be constructed preventing both the use of cleanup.kyverno.io/ttl and cleanup.kyverno.io/expires from being set on the same resource.
     * Ex., block a resource if it has both ttl and expires set
 * A validate policy may be written to enforce certain formatting/standards for these labels
     * Ex., ttl does not attempt to use seconds
