@@ -47,7 +47,7 @@ There are two main use cases associated with this.
 In this proposal, Kyverno may function as a clean-up controller allowing it to identify and scavenge resources. There are two proposed capabilities which would be used to effect a clean-up.
 
 1. Use of two specific labels which may be set on any resource:
-   - `kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the annotated resource was either created or when the label was assigned. Value is a string and units are given in either minutes, hours, or days. Ex., `kyverno.io/ttl: 30m`, `kyverno.io/ttl: 30d`
+   - `kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the labelled resource was either created or when the label was assigned. Value is a string and units are given in either minutes, hours, or days. Ex., `kyverno.io/ttl: 30m`, `kyverno.io/ttl: 30d`
    - `kyverno.io/expires`: Sets the absolute date and time at which clean-up should proceed. Must conform to ISO 8601 standards. Ex., `kyverno.io/expires: 2022-08-04T00:30:00Z`, `kyverno.io/expires: 2022-09-30` 
 2. Use of a new rule type tentatively called `cleanup` which will execute in background mode on a schedule given in cron format. The rule will reuse existing Kyverno policy expression paradigms and capabilities to minimize introduced complexity.
 
