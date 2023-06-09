@@ -215,6 +215,23 @@ A couple implementations have been suggested for the annotation/label methodolog
 
 Kyverno could alternatively leverage a CronJob resource to perform the deletions. By creating a CronJob and keeping it updated upon create/update/delete of these source resources or annotations/labels, the CronJob can be created with a matching schedule which then deletes them. The CronJob may set an ownerReference to the "parent" resource so that deleting of it causes deletion of the CronJob. (This last statement has not been completely proven.) The benefit of this approach is it reduces technical complexity required to implement an end-to-end solution by leveraging existing resource types. The potential downside is it creates additional resources in a cluster which may be undesirable. It also brings with it complexity as Kyverno's creation of these CronJobs may violate users' validate rules which will either need to be excepted or some other method found to exempt them.
 
+
+## Implementation Approach for Label Based Resource Removal in CleanUp Policy
+
+- Design and implement metadata informer which will sync with the informer factory and will extract the labels and check for the appropriate labels.
+
+- Then use the work queue to put the resource with the particular label in the queue and implement the business logic to schedule the deletion of the resources with the particular label schedule.
+
+- As a part of business logic, the controller will be notified as soon as the object is labeled with our ttl or expires label.
+
+- We will calculate the delay between the current time and the time object must be deleted.
+
+- We need to put the necessary information to perform the deletion in the work queue and make sure that the item should be visible in the queue when the delay calculated has elapsed.
+
+- Workers will then continuously pick up items from the queue and perform the actual object deletion.
+
+
+
 ## Pros And Cons of Both implementations
 **Implementation 1**: add a new cleanup controller in the Kyerno main process
 
