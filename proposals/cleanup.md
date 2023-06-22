@@ -230,6 +230,10 @@ Kyverno could alternatively leverage a CronJob resource to perform the deletions
 
 - Workers will then continuously pick up items from the queue and perform the actual object deletion.
 
+- We should use the single label only as there exists only AND based operator, so if we will be applying AND operator to select the resources based on the labels we need to include both `kyverno.io/ttl` and `kyverno.io/expires` as the labels in the resoource definition which is not we wanted, also there is no alternative to enable the OR based operator to select the resources to be deleted based on either of the two labels, and to enable OR based selection of resources based on the labels  we need to use the two informer factories and two set of controllers will be defined for each of the resources which will load a lot of burden on the system.
+
+- Also the absolute date format as defined in the above proposal is invalid and the default validation webhook of the cluster will throw an error so instead of `2022-08-04T00:30:00Z` as a label format, we should use `2022-08-04T003000Z` as a label format and we will handle the parsing of the label by defining a custom layout to parse this date.
+
 
 
 ## Pros And Cons of Both implementations
