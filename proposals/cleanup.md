@@ -234,6 +234,10 @@ Kyverno could alternatively leverage a CronJob resource to perform the deletions
 
 - Also the absolute date format as defined in the above proposal is invalid and the default validation webhook of the cluster will throw an error so instead of `2022-08-04T00:30:00Z` as a label format, we should use `2022-08-04T003000Z` as a label format and we will handle the parsing of the label by defining a custom layout to parse this date.
 
+- Add the discovery api support which will automatically discover the resources available in the cluster and will also check that whether the resource are supporting get, list and delete verbs and also handled the skipping of the resources which do not support the listed verbs.
+
+- Used auth package to check whether the service account associated with resource has permissions to get, list and delete the particular resource.
+
 
 
 ## Pros And Cons of Both implementations
