@@ -238,6 +238,9 @@ Kyverno could alternatively leverage a CronJob resource to perform the deletions
 
 - Used auth package to check whether the service account associated with resource has permissions to get, list and delete the particular resource.
 
+- Implement the logic for listening for the creation and deletion of the specific controllers when the particular resource is added or removed from the cluster and when there is the change in the RBAC permissions for the service account associated.
+
+- Implement the logic for graceful shutdown of the controller.
 
 
 ## Pros And Cons of Both implementations
