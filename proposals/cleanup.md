@@ -242,6 +242,13 @@ Kyverno could alternatively leverage a CronJob resource to perform the deletions
 
 - Implement the logic for graceful shutdown of the controller.
 
+- Made the custom informers so as to support the graceful shutdown of the individual controllers and also avoiding the resource leak.
+
+- Implmented the graceful shutdown of the workers by using the cancellable context.
+
+- Added the unit tests for the calculation and correect parsing of the time.
+
+- Added the Kuttl tests to make sure that each of the scenarios is covered gracefully by the controller.
 
 ## Pros And Cons of Both implementations
 **Implementation 1**: add a new cleanup controller in the Kyerno main process
