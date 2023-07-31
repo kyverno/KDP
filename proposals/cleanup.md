@@ -252,9 +252,8 @@ Kyverno could alternatively leverage a CronJob resource to perform the deletions
 
 - Added the new validation-webhook to make sure that the resources with the label value follows the specific pattern, if not a warning is thrown to the user that the label to which the Kyverno is keeping a watch doesn't follow the recommneded format.
 
-- Created a webhook which will only keep a watch for the resources with the label `cleanup.kyverno.io/ttl` and verfies that the label value adheres to the format defined or not.
+- Created a webhook which will only keep a watch for the resources with the label `cleanup.kyverno.io/ttl` (used the labelSelector from the from the apimachinery/meta/v1 library to do so) and verfies that the label value adheres to the format defined or not.
 
-- Intr
 
 ## Pros And Cons of Both implementations
 **Implementation 1**: add a new cleanup controller in the Kyerno main process
