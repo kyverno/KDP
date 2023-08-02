@@ -47,8 +47,7 @@ There are two main use cases associated with this.
 In this proposal, Kyverno may function as a clean-up controller allowing it to identify and scavenge resources. There are two proposed capabilities which would be used to effect a clean-up.
 
 1. Use of one specific labels which may be set on any resource:
-   - `cleanup.kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the labelled resource was either created or when the label was assigned. Value is a string and units are given in either minutes, hours, or days. Ex., `cleanup.kyverno.io/ttl: 30m`, `cleanup.kyverno.io/ttl: 30d`
-   - `cleanup.kyverno.io/expires`: Sets the absolute date and time at which clean-up should proceed. Must conform to ISO 8601 standards. Ex., `cleanup.kyverno.io/expires: 2022-08-04T00:30:00Z`, `cleanup.kyverno.io/expires: 2022-09-30` 
+   - `cleanup.kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the labelled resource was either created or when the label was assigned. Value is a string and units are given in either minutes, hours, or days. Ex., `cleanup.kyverno.io/ttl: 30m`, `cleanup.kyverno.io/ttl: 30d`, this label will also support the absolute date and time at which clean-up should proceed. Must conform to ISO 8601 stadards. Ex., `cleanup.kyverno.io/ttl: 2022-08-04T00:30:00Z`, `cleanup.kyverno.io/ttl: 2022-09-30` 
 2. Use of a new rule type tentatively called `cleanup` which will execute in background mode on a schedule given in cron format. The rule will reuse existing Kyverno policy expression paradigms and capabilities to minimize introduced complexity.
 
 The functional requirements of both capabilities are defined below.
@@ -61,12 +60,10 @@ The functional requirements of both capabilities are defined below.
         iii. Must allow alteration after the fact
         iv. Must allow deletion to cancel the future clean-up action
         v. Must provide mechanism by which cluster operator (Kyverno CLI) can query across a cluster and return all resources which will be cleaned up
-    b. cleanup.kyverno.io/expires
-        i. Must support absolute time in future in at least one standardized time format (ISO 8601 recommended)
-        ii. Must allow both assignment to new (incoming) resources as well as assignment to existing resources
-        iii. Must allow alteration after the fact
-        iv. Must allow deletion to cancel the future clean-up action
-        v. Must provide mechanism by which cluster operator (Kyverno CLI) can query across a cluster and return all resources which will be cleaned up
+        vi. Must support absolute time in future in at least one standardized time format (ISO 8601 recommended)
+        vii. Must allow both assignment to new (incoming) resources as well as assignment to existing resources
+        viii. Must allow deletion to cancel the future clean-up action
+        ix. Must allow alteration after the fact 
     c. General:
         i. Must log clean-up of any and all resources in, minimally, the Kyverno log
         ii. Must support clean-up of both Namespaced and cluster-scoped resources (including custom)
@@ -218,41 +215,50 @@ Kyverno could alternatively leverage a CronJob resource to perform the deletions
 
 ## Implementation Approach for Label Based Resource Removal in CleanUp Policy
 
-- Design and implement metadata informer which will sync with the informer factory and will extract the labels and check for the appropriate labels.
+### Metadata Informer Design and Implementation
 
-- Then use the work queue to put the resource with the particular label in the queue and implement the business logic to schedule the deletion of the resources with the particular label schedule.
 
-- As a part of business logic, the controller will be notified as soon as the object is labeled with our ttl or expires label.
+The goal is to design and implement a metadata informer that syncs with the informer factory. This informer focuses on extracting labels and checking for appropriate labels. Specifically, it searches for the cleanup.kyverno.io/ttl label and processes resources associated with it. The following steps outline the process:
 
-- We will calculate the delay between the current time and the time object must be deleted.
+- The informer factory is established to monitor and sync resources.
 
-- We need to put the necessary information to perform the deletion in the work queue and make sure that the item should be visible in the queue when the delay calculated has elapsed.
+- The informer identifies resources with the cleanup.kyverno.io/ttl label and adds them to the factory for further processing.
 
-- Workers will then continuously pick up items from the queue and perform the actual object deletion.
+- A work queue is utilized to manage resources with this label.
 
-- We should use the single label only as there exists only AND based operator, so if we will be applying AND operator to select the resources based on the labels we need to include both `cleanup.kyverno.io/ttl` and `cleanup.kyverno.io/expires` as the labels in the resoource definition which is not we wanted, also there is no alternative to enable the OR based operator to select the resources to be deleted based on either of the two labels, and to enable OR based selection of resources based on the labels  we need to use the two informer factories and two set of controllers will be defined for each of the resources which will load a lot of burden on the system.
+- The business logic schedules the deletion of resources labeled with a specific schedule. First of all the time is parsed into the standard format and then the timestamp is added to the current time and a countdown timer is setted up after which the deletion of the resource takes place via the client.
 
-- Also the absolute date format as defined in the above proposal is invalid and the default validation webhook of the cluster will throw an error so instead of `2022-08-04T00:30:00Z` as a label format, we should use `2022-08-04T003000Z` as a label format and we will handle the parsing of the label by defining a custom layout to parse this date.
+- Upon labeling, the controller is notified and verifies the label's valid format for parsing.
 
-- Add the discovery api support which will automatically discover the resources available in the cluster and will also check that whether the resource are supporting get, list and delete verbs and also handled the skipping of the resources which do not support the listed verbs.
+- The delay between the current time and the scheduled deletion time is calculated.
 
-- Used auth package to check whether the service account associated with resource has permissions to get, list and delete the particular resource.
+- Relevant information for deletion is added to the work queue, timed to be visible when the calculated delay elapses.
 
-- Implement the logic for listening for the creation and deletion of the specific controllers when the particular resource is added or removed from the cluster and when there is the change in the RBAC permissions for the service account associated.
+- Workers retrieve items from the queue and execute actual deletions.
 
-- Implement the logic for graceful shutdown of the controller.
+### Key Points
 
-- Made the custom informers so as to support the graceful shutdown of the individual controllers and also avoiding the resource leak.
+- **Single Label**: Due to the limitation of only AND-based operator, a single label (cleanup.kyverno.io/ttl) is used to identify resources for deletion.
 
-- Implmented the graceful shutdown of the workers by using the cancellable context.
+- **Date Format**: The label's date format is adjusted from 2022-08-04T00:30:00Z to 2022-08-04T003000Z to comply with validation webhooks.
 
-- Added the unit tests for the calculation and correect parsing of the time.
+- **Informer Factory**: Custom informers ensure graceful controller shutdown and prevent resource leaks.
 
-- Added the Kuttl tests to make sure that each of the scenarios is covered gracefully by the controller.
+- **Discovery API**: A discovery API identifies resources supporting necessary verbs (get, list, delete) and skips non-compliant resources.
 
-- Added the new validation-webhook to make sure that the resources with the label value follows the specific pattern, if not a warning is thrown to the user that the label to which the Kyverno is keeping a watch doesn't follow the recommneded format.
+- **Permissions**: The auth package validates service account permissions for watch, list, and delete operations.
 
-- Created a webhook which will only keep a watch for the resources with the label `cleanup.kyverno.io/ttl` (used the labelSelector from the from the apimachinery/meta/v1 library to do so) and verfies that the label value adheres to the format defined or not.
+- **Controller Management**: Logic tracks resource creation, deletion, and changes in RBAC permissions, managing individual controllers.
+
+- **Graceful Shutdown**: Cancellable context is utilized for controllers and workers to ensure graceful shutdown.
+
+- **Unit Tests**: Tests cover time calculation and parsing to ensure accuracy.
+
+- **Kuttl Tests**: Comprehensive Kuttl tests cover various scenarios and controller behavior.
+
+- **Validation-Webhook**: A new validation webhook ensures that label values conform to the recommended format.
+
+- **Label Watcher**: A webhook monitors resources with the cleanup.kyverno.io/ttl label, leveraging labelSelector for filtering.
 
 
 ## Pros And Cons of Both implementations
