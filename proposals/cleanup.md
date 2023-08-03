@@ -47,13 +47,13 @@ There are two main use cases associated with this.
 In this proposal, Kyverno may function as a clean-up controller allowing it to identify and scavenge resources. There are two proposed capabilities which would be used to effect a clean-up.
 
 1. Use of one specific labels which may be set on any resource:
-   - `cleanup.kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the labelled resource was either created or when the label was assigned. Value is a string and units are given in either minutes, hours, or days. Ex., `cleanup.kyverno.io/ttl: 30m`, `cleanup.kyverno.io/ttl: 30d`, this label will also support the absolute date and time at which clean-up should proceed. Must conform to ISO 8601 stadards. Ex., `cleanup.kyverno.io/ttl: 2022-08-04T00:30:00Z`, `cleanup.kyverno.io/ttl: 2022-09-30` 
+ - `cleanup.kyverno.io/ttl`: Sets the time-to-live a resource may have which functions as a count-down timer starting from the time at which the resource was created. Value is a string and units are given in either minutes, hours, or days. Ex., `cleanup.kyverno.io/ttl: 30m`, `cleanup.kyverno.io/ttl: 30d`, this label will also support the absolute date and time at which clean-up should proceed. Must conform to ISO 8601 stadards. Ex., `cleanup.kyverno.io/ttl: 2022-08-04T00:30:00Z`, `cleanup.kyverno.io/ttl: 2022-09-30`
 2. Use of a new rule type tentatively called `cleanup` which will execute in background mode on a schedule given in cron format. The rule will reuse existing Kyverno policy expression paradigms and capabilities to minimize introduced complexity.
 
 The functional requirements of both capabilities are defined below.
 
 ```
-1. Labels:
+1. Label:
     a. cleanup.kyverno.io/ttl
         i. must support minimally 1m. No seconds. Duration units are m, h, or d.
         ii. Must allow both assignment to new (incoming) resources as well as assignment to existing resources
@@ -64,11 +64,11 @@ The functional requirements of both capabilities are defined below.
         vii. Must allow both assignment to new (incoming) resources as well as assignment to existing resources
         viii. Must allow deletion to cancel the future clean-up action
         ix. Must allow alteration after the fact 
-    c. General:
+    b. General:
         i. Must log clean-up of any and all resources in, minimally, the Kyverno log
         ii. Must support clean-up of both Namespaced and cluster-scoped resources (including custom)
-        iii. Must only pay attention to these defined labels (i.e., user cannot define a custom label as a replacement for these built-in, special Kyverno labels)
-        iv. If both ttl and expires are specified, either Kyverno ignores the resource or it operates on the sooner of the two. Validate policy may be written which alternatively prevents this condition (account for both creation and updating a resource to add the second label)
+        iii. Must only pay attention to this defined label (i.e., user cannot define a custom label as a replacement for this built-in, special Kyverno label)
+        iv. Validate webhook may be written which alternatively prevents the condition of defining invalid label value for the label "cleanup.kyverno.io/ttl".
 2. Rule:
     a. Must support definition in both Policy and ClusterPolicy resources.
     b. Must support a cron-style schedule around which field validation must be placed (ex., ensuring it uses only a desired subset of the total cron functionality; ensuring it does not run too frequently; etc.)
@@ -87,7 +87,7 @@ The functional requirements of both capabilities are defined below.
 In order to solve for the need of users to introspect an existing cluster to determine which resources may be effected by either or both capability, the following CLI use cases must be solved for.
 
 ```
-CLI Solutions for Labels Use Case
+CLI Solutions for Label Use Case
 
 	• Although most, if not all, of these could be answered with a direct JMESPath query, the CLI could offer a better UX to users but would still internally result in JMESPath queries against the Kubernetes API server.
 	• Command may be `kyverno cleanup <inputs>`
@@ -184,18 +184,12 @@ These new proposed clean-up abilities would be assisted/augmented by Kyverno's p
 
 * The desired criteria may be codified into a mutate policy allowing Kyverno to assign the requisite annotation.
     * Ex., write the ttl label to all Deployments in the foo Namespace
-* A validate policy may be constructed to prevent tampering with the label once a resource has been created with it assigned.
-    * Ex., block changes to or removals of ttl or expires
-* A validate policy may be constructed to prevent the use of a cleanup label based upon certain criteria.
-    * Ex., prevent the use of either label for the foo Role
-* A validate policy may be constructed preventing both the use of cleanup.kyverno.io/ttl and cleanup.kyverno.io/expires from being set on the same resource.
-    * Ex., block a resource if it has both ttl and expires set
-* A validate policy may be written to enforce certain formatting/standards for these labels
-    * Ex., ttl does not attempt to use seconds
-    * Ex., ttl cannot be greater than 90 days
-    * Ex., expires uses the correct time format
-    * Ex., expires is not a date/time in the past
-    * Ex., expires cannot be after the end of this year
+* A validate policy may be written to enforce certain formatting/standards for this label.
+    * Ex., `cleanup.kyverno.io\ttl` does not attempt to use seconds
+    * Ex., `cleanup.kyverno.io\ttl` cannot be greater than 90 days
+    * Ex., `cleanup.kyverno.io\ttl` uses the correct time format
+    * Ex., `cleanup.kyverno.io\ttl` is not a date/time in the past
+    * Ex., `cleanup.kyverno.io\ttl` cannot be after the end of this year
 
 
 # Implementation
@@ -218,11 +212,11 @@ Kyverno could alternatively leverage a CronJob resource to perform the deletions
 ### Metadata Informer Design and Implementation
 
 
-The goal is to design and implement a metadata informer that syncs with the informer factory. This informer focuses on extracting labels and checking for appropriate labels. Specifically, it searches for the cleanup.kyverno.io/ttl label and processes resources associated with it. The following steps outline the process:
+The goal is to design and implement a metadata informer. This informer focuses on extracting labels and checking for appropriate labels. Specifically, it searches for the cleanup.kyverno.io/ttl label and processes resources associated with it. The following steps outline the process:
 
-- The informer factory is established to monitor and sync resources.
+- Custom informers were created from scratch with the implementation of the informer stopping with dedicated context and waitgroup.
 
-- The informer identifies resources with the cleanup.kyverno.io/ttl label and adds them to the factory for further processing.
+- The informer identifies resources with the cleanup.kyverno.io/ttl label and adds them to the work queue for further processing.
 
 - A work queue is utilized to manage resources with this label.
 
@@ -242,13 +236,13 @@ The goal is to design and implement a metadata informer that syncs with the info
 
 - **Date Format**: The label's date format is adjusted from 2022-08-04T00:30:00Z to 2022-08-04T003000Z to comply with validation webhooks.
 
-- **Informer Factory**: Custom informers ensure graceful controller shutdown and prevent resource leaks.
+- **Informers**: Custom informers ensure graceful controller and informer shutdown and prevent resource leaks.
 
 - **Discovery API**: A discovery API identifies resources supporting necessary verbs (get, list, delete) and skips non-compliant resources.
 
 - **Permissions**: The auth package validates service account permissions for watch, list, and delete operations.
 
-- **Controller Management**: Logic tracks resource creation, deletion, and changes in RBAC permissions, managing individual controllers.
+- **Controller Management**: Logic tracks resource creation, deletion which is event based, and changes in RBAC permissions, managing individual controllers these are interval based.
 
 - **Graceful Shutdown**: Cancellable context is utilized for controllers and workers to ensure graceful shutdown.
 
@@ -256,7 +250,7 @@ The goal is to design and implement a metadata informer that syncs with the info
 
 - **Kuttl Tests**: Comprehensive Kuttl tests cover various scenarios and controller behavior.
 
-- **Validation-Webhook**: A new validation webhook ensures that label values conform to the recommended format.
+- **Validation-Webhook**: A new validation webhook ensures that label values conform to the recommended format. It does not block resource creation but returns a warning.
 
 - **Label Watcher**: A webhook monitors resources with the cleanup.kyverno.io/ttl label, leveraging labelSelector for filtering.
 
@@ -309,11 +303,11 @@ N/A
 
 1. How should Pods be handled if either the label is set directly on them (and not its controller) or if the rule is written which targets Pods? For the rule, should it only clean-up Pods if they do not specify an owner? Or should we prevent this rule from being created in the first place? Should we leave this as docs guidance instead?
 
-2. Kyverno resources (policies, reports, URs, etc.) themselves should either not permit being labelled with the ttl or expires label or, alternatively, Kyverno should ignore such labels on its own resources to prevent them from being cleaned up.
+2. Kyverno resources (policies, reports, URs, etc.) themselves should either not permit being labelled with the ttl label or, alternatively, Kyverno should ignore such labels on its own resources to prevent them from being cleaned up.
 
 3. Because cleanup rules may naturally require scanning the entire cluster, care should be taken to ensure, for large to huge clusters, this does not overwhelm Kyverno and result in excess processing which may cause failures in other areas. It may be prudent for such cleanup rules, which should run in background only mode, to be processed in chunks and at lower internal priority.
 
-4. If a Kyverno generate rule is written which uses a `data` type and a user specifies it should also write either the ttl or expires label, the user must set synchronize: false or else Kyverno must block the rule from being created.
+4. If a Kyverno generate rule is written which uses a `data` type and a user specifies it should also write ttl label, the user must set synchronize: false or else Kyverno must block the rule from being created.
 
 # CRD Changes (OPTIONAL)
 
