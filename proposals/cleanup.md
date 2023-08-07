@@ -75,7 +75,7 @@ The functional requirements of both capabilities are defined below.
     c. Must only work in background mode and therefore must ensure background=true for this rule type
     d. Must use existing Kyverno match/exclude and other policy authoring mechanisms to define logic
     e. Must support clean-up of both Namespaced and cluster-scoped resources (including custom)
-    f. Must only clean up resources which have either ttl or expires labels assigned
+    f. Must only clean up resources which have only ttl label defined.
     g. Must show, in some mechanism OTHER THAN the Kyverno log, any and all resources cleaned up by this rule. This should be at least events written to the policy containing the rule responsible for the clean up action.
     h. Must support testing in the Kyverno CLI
     i. Should be capable of checking and reporting, as a warning back to the user at time of policy creation, if Kyverno does not possess the necessary permissions to clean up the resources as defined in the rule's match block.
