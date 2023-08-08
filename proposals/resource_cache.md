@@ -1,6 +1,6 @@
 # Meta
 [meta]: #meta
-- Name: Resourc Cache
+- Name: Resource Cache
 - Start Date: Aug 7, 2023
 - Update data (optional): Aug 7, 2023
 - Author(s): @JimBugwadia
