@@ -24,8 +24,7 @@
 # Overview
 [overview]: #overview
 
-Optional caching of any Kubernetes resource.
-
+Optional caching for any Kubernetes resource.
 
 # Motivation
 [motivation]: #motivation
@@ -36,43 +35,51 @@ From: https://github.com/kyverno/kyverno/issues/4459
 
 # Proposal
 
-There are two aspects to this feature:
+There are two parts to this feature:
 1. Allow users to manage which resources should be cached
-2. Allow policy rules to reference cached resources
+2. Allow policy rules to reference cached resource data
 
 Users can manage which resources to cache using the same mechanism that is currently used for ConfigMap resources i.e. adding a label `cache.kyverno.io/enabled: "true"` to the resource.
 
-To reference cached resources, the `apiCall` context entry can be used:
+In the Kyverno policy a new `context` entry `resourceCache` will be added. Here is an example:
 
 ```yaml
-      context:
-        - name: hosts
-          apiCall:
-            urlPath: "/apis/networking.k8s.io/v1/ingresses"
-            jmesPath: "items[].spec.rules[].host"
-            cache: true
+context:
+  - name: ingresses
+    resourceCache:
+      group: "apis/networking.k8s.io"
+      version: "v1"
+      kind: "ingresses"
+      jmesPath: "ingresses | items[].spec.rules[].host"
 ```
+
+This allows policy authors to declare what resource should be cached. 
+
+The `group` and `version` are optional. If not specified, the preferred versions should be used.
+
+An optional `namespace` can be used to only cache resources in the namespace, rather than across all namespaces which is the behavior is a namespace is not specified.
+
+The JMESPath is optional and is applied to add a resulting subset of the resource data to the rule context.
+
+Note that Kyverno will only cache matching resources that have the label: `cache.kyverno.io/enabled: "true"`.
 
 # Implementation
 
-When policies are created or modified, Kyverno will attempt to initialize informers for any resource type when `cache: true` is specified in the `apiCall`. In case an informer cannot be initialized, or the `urlPath` cannot be converted to an cache lookup (see [Converting API Calls](#converting-api-calls), an error will be returned.
+When policies are created or modified, Kyverno will attempt to initialize informers for any `resourceCache` declaration. In case an informer cannot be initialized, an error will be returned.
 
-During rule execution, Kyverno will again convert the API call to a cache lookup and add the matching resources to the rule context.
+During rule execution, Kyverno will add the resource data to the rule context.
 
-## Converting API Calls
+## Link to the Implementation PR
 
-Kyverno will attempt to convert API calls to the following resource information:
-* Group
-* Version
-* Kind
-* Namespace (optional)
-* Name (optional)
+TBD
 
-If the API call has parameters, or other complexities that prevent conversion, the conversion will fail and return an error.
+# Migration (OPTIONAL)
 
-Kyverno will then load one or more instances of the resources into the policy rule context.
+There is no automated migration. 
 
-Here are some other API calls from sample policies:
+However, to leverage resource caching, users can convert API calls to the new `resourceCache` declaration.
+
+Here are some API calls from sample policies along with the correspinding `resourceCache` declarations:
 
 https://kyverno.io/policies/other/e-l/ensure-production-matches-staging/ensure-production-matches-staging/
 
@@ -81,6 +88,19 @@ https://kyverno.io/policies/other/e-l/ensure-production-matches-staging/ensure-p
     - name: deployment_count
       apiCall:
         urlPath: "/apis/apps/v1/namespaces/staging/deployments"
+        jmesPath: "items[?metadata.name=='{{ request.object.metadata.name }}'] || `[]` | length(@)"
+```
+
+can be converted to:
+
+```
+    context:
+    - name: deployment_count
+      resourceCache:
+        group: "apps"
+        version: "v1"
+        kind: "deployments"
+        namespace: "staging"
         jmesPath: "items[?metadata.name=='{{ request.object.metadata.name }}'] || `[]` | length(@)"
 ```
 
@@ -93,8 +113,19 @@ https://kyverno.io/policies/linkerd/require-linkerd-server/require-linkerd-serve
         urlPath: "/apis/policy.linkerd.io/v1beta1/namespaces/{{request.namespace}}/servers"
 ```
 
-https://kyverno.io/policies/linkerd/check-linkerd-authorizationpolicy/check-linkerd-authorizationpolicy/
+can be converted to:
 
+```
+    context:
+    - name: server_count
+      resourceCache:
+        group: "policy.linkerd.io"
+        version: "v1beta1"
+        kind: "servers"
+        namespace: "{{request.namespace}}"
+```
+
+https://kyverno.io/policies/linkerd/check-linkerd-authorizationpolicy/check-linkerd-authorizationpolicy/
 
 ```
     context:
@@ -108,6 +139,20 @@ https://kyverno.io/policies/linkerd/check-linkerd-authorizationpolicy/check-link
         jmesPath: "items[].metadata.name || `[]`"
 ```
 
+can be converted to:
+
+```
+    context:
+    - name: servers
+      resourceCache:
+        group: "policy.linkerd.io"
+        version: "v1beta1"
+        kind: "servers"
+        namespace: "{{request.namespace}}"
+        jmesPath: "items[].metadata.name || `[]"
+```
+
+
 https://kyverno.io/policies/istio/require-authorizationpolicy/require-authorizationpolicy/
 
 ```
@@ -117,6 +162,19 @@ https://kyverno.io/policies/istio/require-authorizationpolicy/require-authorizat
         jmesPath: "items[].metadata.namespace"
 
 ```
+
+can be converted to:
+
+```
+    context:
+    - name: allauthorizationpolicies
+      resourceCache:
+        group: "security.istio.io"
+        version: "v1beta1"
+        kind: "authorizationpolicies"
+        jmesPath: "items[].metadata.namespace"
+```
+
 
 https://kyverno.io/policies/other/rec-req/require-netpol/require-netpol/
 
@@ -128,33 +186,42 @@ https://kyverno.io/policies/other/rec-req/require-netpol/require-netpol/
         jmesPath: "items[?label_match(spec.podSelector.matchLabels, `{{request.object.spec.template.metadata.labels}}`)] | length(@)"
 ```
 
-## Link to the Implementation PR
+can be converted to:
 
-TBD
-
-# Migration (OPTIONAL)
-
-N/A
+```
+    context:
+    - name: policies_count
+      resourceCache:
+        group: "networking.k8s.io"
+        version: "v1"
+        kind: "networkpolicies"
+        namespace: "{{request.namespace}}"
+        jmesPath: "items[?label_match(spec.podSelector.matchLabels, `{{request.object.spec.template.metadata.labels}}`)] | length(@)"
+```
 
 # Drawbacks
 
-It may be confusing that we are using APICalls to specify resource caching.
+API calls do not leverage caching by default.
+
+If needed, we can add a separate caching mechanism for API calls in the future.
+
 
 # Alternatives
 
-## Introduce a new context entry for cached resources
+## Add caching to API calls 
 
-An alternative scheme would be to define a new context entry type:
+To cache resources, the `apiCall` context entry can be extended to add a `cache` field:
 
 ```yaml
       context:
         - name: hosts
-          resourceCache:
-            group: "apis/networking.k8s.io"
-            version: "v1"
-            kind: "ingresses"
+          apiCall:
+            urlPath: "/apis/networking.k8s.io/v1/ingresses"
             jmesPath: "items[].spec.rules[].host"
+            cache: true
 ```
+
+However, coupling resource caching to API calls could be confusing for users.
 
 # Prior Art
 
@@ -162,10 +229,15 @@ N/A
 
 # Limitations
 
-1. The inital version will only address Kubernetes API server calls. Other service API calls can be considered in future versions.
-2. 
+1. This only addresses Kubernetes resource caching. Resources from other API calls are not cached.
+
+# Open Items
+
+1. We may not be able to use a static Kubernetes client for all types, as the client set can include custom types, and dynamic clients may be resource intensive. More research is needed to determine the best way to manage informers.
+2. Typically informers are initialized on startup. This feature may require adding / deleting informers after startup.
+3. All admission controller replicas will need to cache data. For background controller and reports controller the leader will need to cache data.
 
 # CRD Changes (OPTIONAL)
 
-Yes. A new field `cache` will be added to the `apiCall`
+Yes. A new context entry `resourceCache` will be added. The CRD will be defined in the implementation stage.
 

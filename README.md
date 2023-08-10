@@ -23,8 +23,6 @@ Older proposals were managed in documents. All new proposals should be submitted
 | [Store Kyverno policies in OCI registries](https://docs.google.com/document/d/15cqD4HPecI5Uv2u1Yfg0JCgWDVi2HLwGZPvTX_48W2E/edit?usp=sharing) | Implemented | 1.9 |
 | [Policy Exceptions](https://github.com/kyverno/KDP/pull/33) | In Review | 1.9 |
 | [ConfigMap cache enhancement with Informers](/proposals/cache_enhancements.md) | Implemented | 1.9 |
-| [Resource Cache](https://github.com/kyverno/KDP/pull/47) | Proposal | 1.11 |
-
 
 ## Inactive Proposals
 
