@@ -50,6 +50,7 @@ context:
       group: "apis/networking.k8s.io"
       version: "v1"
       kind: "ingresses"
+      namespace: apps
       jmesPath: "ingresses | items[].spec.rules[].host"
 ```
 
@@ -59,7 +60,7 @@ The `group` and `version` are optional. If not specified, the preferred versions
 
 An optional `namespace` can be used to only cache resources in the namespace, rather than across all namespaces which is the behavior is a namespace is not specified.
 
-The JMESPath is optional and is applied to add a resulting subset of the resource data to the rule context.
+The JMESPath is also optional and is applied to add a resulting subset of the resource data to the rule context.
 
 Note that Kyverno will only cache matching resources that have the label: `cache.kyverno.io/enabled: "true"`.
 
@@ -79,11 +80,22 @@ During rule execution, Kyverno will add the resource data to the rule context.
 
 With this option, Kyverno will not be able to use informers but instead use dynamic watches and mantain its own cache.
 
-This will be more involved, but will allow caching any custom resource.
-
-It can also allow finer grained filters for what should be cached.
+This will be more involved, but will allow caching any custom resource. This approach can also allow finer grained filters, in addition to labels, for what should be cached.
 
 As with the informers based implementation, during rule execution, Kyverno will add the resource data to the rule context.
+
+## Other requirements
+
+### Metrics
+
+It would be useful to add cache metrics for observability and troubleshooting.
+
+### Failure handling
+
+The assumption is that the cache is kept up-to-date. We will need to think about any potential race conditions, especially during startup, and how to handle scenarios where the cache is not populated.
+
+
+### Failure 
 
 ## Link to the Implementation PR
 
@@ -99,7 +111,7 @@ Here are some API calls from sample policies along with the correspinding `resou
 
 https://kyverno.io/policies/other/e-l/ensure-production-matches-staging/ensure-production-matches-staging/
 
-```
+```yaml
     context:
     - name: deployment_count
       apiCall:
@@ -109,7 +121,7 @@ https://kyverno.io/policies/other/e-l/ensure-production-matches-staging/ensure-p
 
 can be converted to:
 
-```
+```yaml
     context:
     - name: deployment_count
       resourceCache:
@@ -122,7 +134,7 @@ can be converted to:
 
 https://kyverno.io/policies/linkerd/require-linkerd-server/require-linkerd-server/
 
-```
+```yaml
     context:
     - name: server_count
       apiCall:
@@ -131,7 +143,7 @@ https://kyverno.io/policies/linkerd/require-linkerd-server/require-linkerd-serve
 
 can be converted to:
 
-```
+```yaml
     context:
     - name: server_count
       resourceCache:
@@ -143,7 +155,7 @@ can be converted to:
 
 https://kyverno.io/policies/linkerd/check-linkerd-authorizationpolicy/check-linkerd-authorizationpolicy/
 
-```
+```yaml
     context:
     - name: servers
       apiCall:
@@ -157,7 +169,7 @@ https://kyverno.io/policies/linkerd/check-linkerd-authorizationpolicy/check-link
 
 can be converted to:
 
-```
+```yaml
     context:
     - name: servers
       resourceCache:
@@ -171,7 +183,7 @@ can be converted to:
 
 https://kyverno.io/policies/istio/require-authorizationpolicy/require-authorizationpolicy/
 
-```
+```yaml
     - name: allauthorizationpolicies
       apiCall:
         urlPath: "/apis/security.istio.io/v1beta1/authorizationpolicies"
@@ -181,7 +193,7 @@ https://kyverno.io/policies/istio/require-authorizationpolicy/require-authorizat
 
 can be converted to:
 
-```
+```yaml
     context:
     - name: allauthorizationpolicies
       resourceCache:
@@ -195,7 +207,7 @@ can be converted to:
 https://kyverno.io/policies/other/rec-req/require-netpol/require-netpol/
 
 
-```
+```yaml
     - name: policies_count
       apiCall:
         urlPath: "/apis/networking.k8s.io/v1/namespaces/{{request.namespace}}/networkpolicies"
@@ -204,7 +216,7 @@ https://kyverno.io/policies/other/rec-req/require-netpol/require-netpol/
 
 can be converted to:
 
-```
+```yaml
     context:
     - name: policies_count
       resourceCache:
@@ -249,9 +261,10 @@ N/A
 
 # Open Items
 
-1. We may not be able to use a static Kubernetes client for all types, as the client set can include custom types, and dynamic clients may be resource intensive. More research is needed to determine the best way to manage informers.
+1. We may not be able to use a static Kubernetes client for all types, as the client set can include custom types, and dynamic clients may be resource intensive. More research is needed to determine the best way to manage informers. The alternative is to use watches.
 2. Typically informers are initialized on startup. This feature may require adding / deleting informers after startup.
 3. All admission controller replicas will need to cache data. For background controller and reports controller the leader will need to cache data.
+
 
 # CRD Changes (OPTIONAL)
 
