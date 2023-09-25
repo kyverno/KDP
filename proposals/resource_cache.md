@@ -2,7 +2,7 @@
 [meta]: #meta
 - Name: Resource Cache
 - Start Date: Aug 7, 2023
-- Update data (optional): Aug 7, 2023
+- Update Date: Sep 24th, 2023
 - Author(s): @JimBugwadia
 
 # Table of Contents
@@ -24,7 +24,7 @@
 # Overview
 [overview]: #overview
 
-Optional caching for any Kubernetes resource.
+Optional caching of any Kubernetes resource.
 
 # Motivation
 [motivation]: #motivation
@@ -65,9 +65,25 @@ Note that Kyverno will only cache matching resources that have the label: `cache
 
 # Implementation
 
-When policies are created or modified, Kyverno will attempt to initialize informers for any `resourceCache` declaration. In case an informer cannot be initialized, an error will be returned.
+There are multiple ways to implement this feature:
+
+## Limited to known types
+
+With this option, Kyverno will be able to cache types defined in the Kubernetes client set but will not be able to cache other custom resources.
+
+As policies are created or modified, Kyverno will attempt to initialize informers for any `resourceCache` declaration. In case an informer cannot be initialized, an error will be returned.
 
 During rule execution, Kyverno will add the resource data to the rule context.
+
+## Support for any resource type
+
+With this option, Kyverno will not be able to use informers but instead use dynamic watches and mantain its own cache.
+
+This will be more involved, but will allow caching any custom resource.
+
+It can also allow finer grained filters for what should be cached.
+
+As with the informers based implementation, during rule execution, Kyverno will add the resource data to the rule context.
 
 ## Link to the Implementation PR
 
@@ -240,4 +256,3 @@ N/A
 # CRD Changes (OPTIONAL)
 
 Yes. A new context entry `resourceCache` will be added. The CRD will be defined in the implementation stage.
-
