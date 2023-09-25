@@ -1,6 +1,6 @@
 # Meta
 [meta]: #meta
-- Name: Kyberno for non-Kubernetes workloads
+- Name: Kyverno for non-Kubernetes workloads
 - Start Date: Sep 24th, 2023
 - Update data: 
 - Author(s): @JimBugwadia
