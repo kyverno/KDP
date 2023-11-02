@@ -1,6 +1,6 @@
 # Meta
 [meta]: #meta
-- Name: Aggreation API and extension API server for policy reports
+- Name: Aggregation API and extension API server for policy reports
 - Start Date: 2023-11-02
 - Author(s): @vishal-chdhry
 
