@@ -90,7 +90,7 @@ The database will not act as the store of historic data, only current informatio
 # Unresolved Questions
 
 1. Will this be a required component when installing Kyverno CRD?
-2. Kyverno is not the only user of policy reports CRD and having an extension API can break other tools like kubebench, If other tooks install the policy reports CRD without the aggregation API,  how will that be handled?
+2. Kyverno is not the only user of policy reports CRD and having an extension API can break other tools like kubebench. If other tools install the policy reports CRD without the aggregation API, how will that be handled?
 
 # References
 
