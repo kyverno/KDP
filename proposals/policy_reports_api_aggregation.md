@@ -60,7 +60,7 @@ Since policy reports do not need the guarentees provided by etcd, we can move re
 
 # Proposal
 
-The API server will proxy the request to an extension API server which will have its own database to store policy reports. Kine can be used as the backend behind an extension API server. Kine will expose an etcd-like interface and use a relational databases to store data. 
+The API server will proxy the request to an extension API server which will have its own database to store policy reports. Kine can be used as the backend behind an extension API server. Kine will expose an etcd-like interface and use a relational database to store data. 
 
 The database will not act as the store of historic data, only current information. This database can also be used by policy reporter so that it does not have to copy data from etcd.
 
