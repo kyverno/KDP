@@ -51,7 +51,7 @@ This has the follwing advantages
    3. Standard API.
    4. Ability to reuse opt tools for security purposes
 
-However etcd has several downsides which become major pain points in large cluster.
+However etcd has several downsides which become major pain points in large clusters.
 1. During heavy admission activities, the latency between the API server and etcd becomes a problem. The API server also consumes more memory and can go out of memory.
 2. Etcd has a storage size limit of 8GB which creates a theoretical limit on the number of policy reports we can have in a cluster.
 3. It can be unsafe to retrive all policy reports in a cluster and there are limited querying options in etcd.
