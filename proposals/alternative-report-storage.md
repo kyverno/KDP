@@ -87,7 +87,7 @@ This provides a high level overview of the feature.
 The high-level proposal is to introduce a new component which is managed through the aggregation API and serves report requests using an alternative database.
 
 The diagram below shows a sample high-level view of a cluster with the new component installed:
-![Diagram showing the extension API server as an intermediary between the Kubernetes API server and an external database](Future-PolicyReport-storage.svg)
+![Diagram showing the extension API server as an intermediary between the Kubernetes API server and an external database](images/Future-PolicyReport-storage.svg)
 
 # Implementation
 
