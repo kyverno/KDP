@@ -49,7 +49,7 @@ This has the follwing advantages
    1. Multiple tooling options.
    2. Immediate developer feedback.
    3. Standard API.
-   4. Ability to reuse opt tools for securityu purposes
+   4. Ability to reuse opt tools for security purposes
 
 However etcd has several downsides which become major pain points in large cluster.
 1. During heavy admission activities, the latency between the API server and etcd becomes a problem. The API server also consumes more memory and can go out of memory.
