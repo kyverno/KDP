@@ -22,7 +22,7 @@
 # Overview
 [overview]: #overview
 
-Policy reports are used by Kyverno and serveral other data sources as a source of information. But, in large Kubernetes clusters, we run up gainsts storage limitations because of etcd. This Proposal aims to solve the issue related to limitations in etcd with relations to policy reports. 
+Policy reports are used by Kyverno and serveral other data sources as a source of information. But, in large Kubernetes clusters, we run up against storage limitations of etcd. This Proposal aims to solve the issue related to limitations in etcd with relations to policy reports. 
 
 # Definitions
 [definitions]: #definitions
