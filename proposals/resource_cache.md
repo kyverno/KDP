@@ -10,15 +10,28 @@
 - [Meta](#meta)
 - [Table of Contents](#table-of-contents)
 - [Overview](#overview)
-- [Definitions](#definitions)
 - [Motivation](#motivation)
 - [Proposal](#proposal)
 - [Implementation](#implementation)
+  - [Kubernetes resource](#kubernetes-resource)
+  - [External API Call](#external-api-call)
+  - [Other requirements](#other-requirements)
+    - [Metrics](#metrics)
+    - [Failure handling](#failure-handling)
+    - [Failure](#failure)
+  - [Link to the Implementation PR](#link-to-the-implementation-pr)
 - [Migration (OPTIONAL)](#migration-optional)
 - [Drawbacks](#drawbacks)
 - [Alternatives](#alternatives)
+  - [Adding resource cache entry to a policy](#adding-resource-cache-entry-to-a-policy)
+    - [Implementation](#implementation-1)
+      - [Limited to known types](#limited-to-known-types)
+      - [Support for any resource type](#support-for-any-resource-type)
+    - [Drawbacks](#drawbacks-1)
+  - [Add caching to API calls](#add-caching-to-api-calls)
 - [Prior Art](#prior-art)
-- [Unresolved Questions](#unresolved-questions)
+- [Limitations](#limitations)
+- [Open Items](#open-items)
 - [CRD Changes (OPTIONAL)](#crd-changes-optional)
 
 # Overview
@@ -39,50 +52,67 @@ There are two parts to this feature:
 1. Allow users to manage which resources should be cached
 2. Allow policy rules to reference cached resource data
 
-Users can manage which resources to cache using the same mechanism that is currently used for ConfigMap resources i.e. adding a label `cache.kyverno.io/enabled: "true"` to the resource.
+Users can manage which resources to cache by creating a new custom resource called `ContextEntry` provided by Kyverno. This will decouple the creation and usage of a cache entry. 
 
-In the Kyverno policy a new `context` entry `resourceCache` will be added. Here is an example:
+A `ContextEntry` will be of two types:
+1. `Resource`: A resource is a kubernetes resrouce that should be cached, to create a `ContextEntry` of resource type, following resource should be created:
 
+```yaml
+apiVersion: kyverno.io/v2alpha1
+kind: ContextEntry
+metadata:
+  name: ingress
+spec:
+  resource:
+    group: "apis/networking.k8s.io"
+    version: "v1"
+    kind: "ingresses"
+    namespace: apps
+```
+
+This resource allows authors to declare what kubernetes resource should be cached. The `group` and `version` are optional. If not specified, the preferred versions should be used. An optional `namespace` can be used to only cache resources in the namespace, rather than across all namespaces which is the behavior is a namespace is not specified.
+
+2. `External`: An external is an external API call response that should be cached, to create a `ContextEntry` of external type, following resource should be created:
+
+```yaml
+apiVersion: kyverno.io/v2alpha1
+kind: ContextEntry
+metadata:
+  name: ingress
+spec:
+  external:
+    url: https://svc.kyverno/example
+    caBundle: |-
+      -----BEGIN CERTIFICATE-----
+      -----REDACTED-----
+      -----END CERTIFICATE-----
+    refreshIntervalSeconds: 10
+```
+
+This allows authors to declare what API response should be cached. The `url` is the URL where the request will be sent. `caBundle` is a PEM encoded CA bundle which will be used to validate the server certificate. The `refreshIntervalSeconds` is the interval after which the URL will be reached again to refresh the entry.
+
+To reference these cache entry in a policy, we can add it to context variable as follows,
 ```yaml
 context:
   - name: ingresses
-    resourceCache:
-      group: "apis/networking.k8s.io"
-      version: "v1"
-      kind: "ingresses"
-      namespace: apps
-      jmesPath: "ingresses | items[].spec.rules[].host"
+    contextEntry:
+      name: ingress
+      jmespath: "ingresses | items[].spec.rules[].host"
 ```
 
-This allows policy authors to declare what resource should be cached. 
-
-The `group` and `version` are optional. If not specified, the preferred versions should be used.
-
-An optional `namespace` can be used to only cache resources in the namespace, rather than across all namespaces which is the behavior is a namespace is not specified.
-
-The JMESPath is also optional and is applied to add a resulting subset of the resource data to the rule context.
-
-Note that Kyverno will only cache matching resources that have the label: `cache.kyverno.io/enabled: "true"`.
+`contextEntry.name` is the name of the entry to be used. The JMESPath is optional and is applied to add a resulting subset of the resource data to the rule context.
 
 # Implementation
 
-There are multiple ways to implement this feature:
+Resource cache will require an in-memory cache that will be stored in every controller. We will store both type of context entries as follows:
 
-## Limited to known types
+## Kubernetes resource
 
-With this option, Kyverno will be able to cache types defined in the Kubernetes client set but will not be able to cache other custom resources.
+Kyverno will use kubernetes dynamic client to create generic informers and listers to cache any kubernetes resource. These listers will then be stored in the cache and will be accessed when they are referenced in a policy.
 
-As policies are created or modified, Kyverno will attempt to initialize informers for any `resourceCache` declaration. In case an informer cannot be initialized, an error will be returned.
+## External API Call
 
-During rule execution, Kyverno will add the resource data to the rule context.
-
-## Support for any resource type
-
-With this option, Kyverno will not be able to use informers but instead use dynamic watches and mantain its own cache.
-
-This will be more involved, but will allow caching any custom resource. This approach can also allow finer grained filters, in addition to labels, for what should be cached.
-
-As with the informers based implementation, during rule execution, Kyverno will add the resource data to the rule context.
+Kyverno will store these in the same cache, External API cache entry will require polling to update the cache entry at the specified interval.
 
 ## Other requirements
 
@@ -93,7 +123,6 @@ It would be useful to add cache metrics for observability and troubleshooting.
 ### Failure handling
 
 The assumption is that the cache is kept up-to-date. We will need to think about any potential race conditions, especially during startup, and how to handle scenarios where the cache is not populated.
-
 
 ### Failure 
 
@@ -132,109 +161,68 @@ can be converted to:
         jmesPath: "items[?metadata.name=='{{ request.object.metadata.name }}'] || `[]` | length(@)"
 ```
 
-https://kyverno.io/policies/linkerd/require-linkerd-server/require-linkerd-server/
-
-```yaml
-    context:
-    - name: server_count
-      apiCall:
-        urlPath: "/apis/policy.linkerd.io/v1beta1/namespaces/{{request.namespace}}/servers"
-```
-
-can be converted to:
-
-```yaml
-    context:
-    - name: server_count
-      resourceCache:
-        group: "policy.linkerd.io"
-        version: "v1beta1"
-        kind: "servers"
-        namespace: "{{request.namespace}}"
-```
-
-https://kyverno.io/policies/linkerd/check-linkerd-authorizationpolicy/check-linkerd-authorizationpolicy/
-
-```yaml
-    context:
-    - name: servers
-      apiCall:
-        urlPath: "/apis/policy.linkerd.io/v1beta1/namespaces/{{request.namespace}}/servers"
-        jmesPath: "items[].metadata.name || `[]`"
-    - name: httproutes
-      apiCall:
-        urlPath: "/apis/policy.linkerd.io/v1beta1/namespaces/{{request.namespace}}/httproutes"
-        jmesPath: "items[].metadata.name || `[]`"
-```
-
-can be converted to:
-
-```yaml
-    context:
-    - name: servers
-      resourceCache:
-        group: "policy.linkerd.io"
-        version: "v1beta1"
-        kind: "servers"
-        namespace: "{{request.namespace}}"
-        jmesPath: "items[].metadata.name || `[]"
-```
-
-
-https://kyverno.io/policies/istio/require-authorizationpolicy/require-authorizationpolicy/
-
-```yaml
-    - name: allauthorizationpolicies
-      apiCall:
-        urlPath: "/apis/security.istio.io/v1beta1/authorizationpolicies"
-        jmesPath: "items[].metadata.namespace"
-
-```
-
-can be converted to:
-
-```yaml
-    context:
-    - name: allauthorizationpolicies
-      resourceCache:
-        group: "security.istio.io"
-        version: "v1beta1"
-        kind: "authorizationpolicies"
-        jmesPath: "items[].metadata.namespace"
-```
-
-
-https://kyverno.io/policies/other/rec-req/require-netpol/require-netpol/
-
-
-```yaml
-    - name: policies_count
-      apiCall:
-        urlPath: "/apis/networking.k8s.io/v1/namespaces/{{request.namespace}}/networkpolicies"
-        jmesPath: "items[?label_match(spec.podSelector.matchLabels, `{{request.object.spec.template.metadata.labels}}`)] | length(@)"
-```
-
-can be converted to:
-
-```yaml
-    context:
-    - name: policies_count
-      resourceCache:
-        group: "networking.k8s.io"
-        version: "v1"
-        kind: "networkpolicies"
-        namespace: "{{request.namespace}}"
-        jmesPath: "items[?label_match(spec.podSelector.matchLabels, `{{request.object.spec.template.metadata.labels}}`)] | length(@)"
-```
-
 # Drawbacks
 
 API calls do not leverage caching by default.
 
 If needed, we can add a separate caching mechanism for API calls in the future.
 
-
 # Alternatives
+
+## Adding resource cache entry to a policy
+
+Users can manage which resources to cache using the same mechanism that is currently used for ConfigMap resources i.e. adding a label `cache.kyverno.io/enabled: "true"` to the resource.
+
+In the Kyverno policy a new `context` entry `resourceCache` will be added. Here is an example:
+
+```yaml
+context:
+  - name: ingresses
+    resourceCache:
+      group: "apis/networking.k8s.io"
+      version: "v1"
+      kind: "ingresses"
+      namespace: apps
+      jmesPath: "ingresses | items[].spec.rules[].host"
+```
+
+This allows policy authors to declare what resource should be cached. 
+
+The `group` and `version` are optional. If not specified, the preferred versions should be used.
+
+An optional `namespace` can be used to only cache resources in the namespace, rather than across all namespaces which is the behavior is a namespace is not specified.
+
+The JMESPath is also optional and is applied to add a resulting subset of the resource data to the rule context.
+
+Note that Kyverno will only cache matching resources that have the label: `cache.kyverno.io/enabled: "true"`.
+
+### Implementation
+
+There are multiple ways to implement this feature:
+
+#### Limited to known types
+
+With this option, Kyverno will be able to cache types defined in the Kubernetes client set but will not be able to cache other custom resources.
+
+As policies are created or modified, Kyverno will attempt to initialize informers for any `resourceCache` declaration. In case an informer cannot be initialized, an error will be returned.
+
+During rule execution, Kyverno will add the resource data to the rule context.
+
+#### Support for any resource type
+
+With this option, Kyverno will not be able to use informers but instead use dynamic watches and mantain its own cache.
+
+This will be more involved, but will allow caching any custom resource. This approach can also allow finer grained filters, in addition to labels, for what should be cached.
+
+As with the informers based implementation, during rule execution, Kyverno will add the resource data to the rule context.
+
+### Drawbacks
+
+1. API calls do not leverage caching by default. If needed, we can add a separate caching mechanism for API calls in the future.
+2. Using `cache.kyverno.io/enabled: "true"` can cause issues when users forgets to add them to the resource. 
+   1. It is easy to miss a resource when adding the label. `apiCall` will return all the resources of the given type while `resourceCache` will return only those resources that have the label. In case of 1-10k resources. 
+   2. Users might not want to have a kyverno specific label in all their resources across all namespaces.
+3. For the usecase mentioned in [motivation](#motivation), we need to add resource to the cache when the policies is applied, otherwise, when the resource is applied for the first time, it will fail because of the timeout like it currently does. This will take away the abilities to have substitutions in `resourceCache` (e.g. `namespace: "{{request.namespace}}"`) and the `resourceCache` field will have to be static.
 
 ## Add caching to API calls 
 
@@ -256,8 +244,6 @@ However, coupling resource caching to API calls could be confusing for users.
 N/A
 
 # Limitations
-
-1. This only addresses Kubernetes resource caching. Resources from other API calls are not cached.
 
 # Open Items
 
