@@ -163,10 +163,6 @@ can be converted to:
 
 # Drawbacks
 
-API calls do not leverage caching by default.
-
-If needed, we can add a separate caching mechanism for API calls in the future.
-
 # Alternatives
 
 ## Adding resource cache entry to a policy
