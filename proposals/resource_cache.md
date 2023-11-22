@@ -52,14 +52,14 @@ There are two parts to this feature:
 1. Allow users to manage which resources should be cached
 2. Allow policy rules to reference cached resource data
 
-Users can manage which resources to cache by creating a new custom resource called `ContextEntry` provided by Kyverno. This will decouple the creation and usage of a cache entry. 
+Users can manage which resources to cache by creating a new custom resource called `CachedContextEntry` provided by Kyverno. This will decouple the creation and usage of a cache entry. 
 
-A `ContextEntry` will be of two types:
-1. `Resource`: A resource is a Kubernetes resource that should be cached, to create a `ContextEntry` of resource type, the following resource should be created:
+A `CachedContextEntry` will be of two types:
+1. `Resource`: A resource is a Kubernetes resource that should be cached, to create a `CachedContextEntry` of resource type, the following resource should be created:
 
 ```yaml
 apiVersion: kyverno.io/v2alpha1
-kind: ContextEntry
+kind: CachedContextEntry
 metadata:
   name: ingress
 spec:
@@ -72,15 +72,15 @@ spec:
 
 This resource allows authors to declare what Kubernetes resource should be cached. The `group` and `version` are optional. If not specified, the preferred versions should be used. An optional `namespace` can be used to only cache resources in the namespace, rather than across all namespaces which is the behavior is a namespace is not specified.
 
-2. `External`: An external is an external API call response that should be cached, to create a `ContextEntry` of the external type, The following resource should be created:
+2. `APICall`: An APICall is an external API call response that should be cached, to create a `CachedContextEntry` of the APICall type, The following resource should be created:
 
 ```yaml
 apiVersion: kyverno.io/v2alpha1
-kind: ContextEntry
+kind: CachedContextEntry
 metadata:
   name: ingress
 spec:
-  external:
+  apiCall:
     url: https://svc.kyverno/example
     caBundle: |-
       -----BEGIN CERTIFICATE-----
@@ -95,12 +95,12 @@ To reference these cache entries in a policy, we can add them to the context var
 ```yaml
 context:
   - name: ingresses
-    contextEntry:
+    cachedContextEntry:
       name: ingress
       jmespath: "ingresses | items[].spec.rules[].host"
 ```
 
-`contextEntry.name` is the name of the entry to be used. The JMESPath is optional and is applied to add a resulting subset of the resource data to the rule context.
+`cachedContextEntry.name` is the name of the entry to be used. The JMESPath is optional and is applied to add a resulting subset of the resource data to the rule context.
 
 # Implementation
 
@@ -108,23 +108,27 @@ Resource cache will require an in-memory cache that will be stored in every cont
 
 ## Kubernetes resource
 
-Kyverno will use Kubernetes dynamic client to create generic informers and listers to cache any Kubernetes resource. These listers will then be stored in the cache and will be accessed when they are referenced in a policy.
+Kyverno will use a Kubernetes dynamic client to create generic informers and listers to cache any Kubernetes resource. These listers will then be stored in the cache and will be accessed when they are referenced in a policy.
 
 ## External API Call
 
-Kyverno will store these in the same cache, External API cache entry will require polling to update the cache entry at the specified interval.
+Kyverno will store these in the same cache, APICall cache entry will require polling to update the cache entry at the specified interval.
+
+The Cache will not be ready until all the entries have been added to it. There will be. There will be a max memory limit and older entries will get evicted when cache is full. 
 
 ## Other requirements
 
 ### Metrics
 
-It would be useful to add cache metrics for observability and troubleshooting.
+It would be useful to add cache metrics to show cache usage for observability and troubleshooting.
 
 ### Failure handling
 
 The assumption is that the cache is kept up-to-date. We will need to think about any potential race conditions, especially during startup, and how to handle scenarios where the cache is not populated.
 
 ### Failure 
+
+When a `resource` or `apiCall` entry fails, A policy error should be thrown with the error recieved from the cache entry.
 
 ## Link to the Implementation PR
 
@@ -167,7 +171,6 @@ can be converted to:
 
 ## Adding resource cache entry to a policy
 
-Users can manage which resources to cache using the same mechanism that is currently used for ConfigMap resources i.e. adding a label `cache.kyverno.io/enabled: "true"` to the resource.
 
 In the Kyverno policy a new `context` entry `resourceCache` will be added. Here is an example:
 
@@ -189,8 +192,6 @@ The `group` and `version` are optional. If not specified, the preferred versions
 An optional `namespace` can be used to only cache resources in the namespace, rather than across all namespaces which is the behavior is a namespace is not specified.
 
 The JMESPath is also optional and is applied to add a resulting subset of the resource data to the rule context.
-
-Note that Kyverno will only cache matching resources that have the label: `cache.kyverno.io/enabled: "true"`.
 
 ### Implementation
 
@@ -215,10 +216,7 @@ As with the informers-based implementation, during rule execution, Kyverno will 
 ### Drawbacks
 
 1. API calls do not leverage caching by default. If needed, we can add a separate caching mechanism for API calls in the future.
-2. Using `cache.kyverno.io/enabled: "true"` can cause issues when users forget to add them to the resource. 
-   1. It is easy to miss a resource when adding the label. `apiCall` will return all the resources of the given type while `resourceCache` will return only those resources that have the label. In the case of 1-10k resources. 
-   2. Users might not want to have a Kyverno-specific label in all their resources across all namespaces.
-3. For the use case mentioned in [motivation](#motivation), we need to add a resource to the cache when the policies is applied, otherwise, when the resource is applied for the first time, it will fail because of the timeout like it currently does. This will take away the ability to have substitutions in `resourceCache` (e.g. `namespace: "{{request.namespace}}"`) and the `resourceCache` field will have to be static.
+2. For the use case mentioned in [motivation](#motivation), we need to add a resource to the cache when the policies is applied, otherwise, when the resource is applied for the first time, it will fail because of the timeout like it currently does. This will take away the ability to have substitutions in `resourceCache` (e.g. `namespace: "{{request.namespace}}"`) and the `resourceCache` field will have to be static.
 
 ## Add caching to API calls 
 
@@ -243,9 +241,7 @@ N/A
 
 # Open Items
 
-1. We may not be able to use a static Kubernetes client for all types, as the client set can include custom types, and dynamic clients may be resource-intensive. More research is needed to determine the best way to manage informers. The alternative is to use watches.
-2. Typically informers are initialized on startup. This feature may require adding/deleting informers after startup.
-3. All admission controller replicas will need to cache data. For the background controller and reports controller, the leader will need to cache data.
+1. All admission controller replicas will need to cache data. For the background controller and reports controller, the leader will need to cache data.
 
 
 # CRD Changes (OPTIONAL)
