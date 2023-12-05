@@ -128,7 +128,7 @@ The assumption is that the cache is kept up-to-date. We will need to think about
 
 ### Failure 
 
-When a `resource` or `apiCall` entry fails, A policy error should be thrown with the error recieved from the cache entry.
+When a `resource` or `apiCall` entry fails, a policy error should be thrown with the error received from the cache entry.
 
 ## Link to the Implementation PR
 
