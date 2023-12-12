@@ -205,7 +205,7 @@ https://github.com/kyverno/kyverno/pull/8065 registers the webhook's scope based
 
 ## Other requirements
 
-- All the mentioned attributes under the policy `match` block will be examined when creating policy reports. While this is not necessary needed when Kyverno process the admission requests as they are already filtered by the webhook. The optimization can be made to accelerate the admission review process.
+- All the mentioned attributes under the policy `match` block will be examined when creating policy reports. While this is not necessary needed when Kyverno processes the admission requests as they are already filtered by the webhook. The optimization can be made to accelerate the admission review process.
 
 # Migration (OPTIONAL)
 
