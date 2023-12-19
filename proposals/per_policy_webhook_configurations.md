@@ -24,7 +24,7 @@
 # Overview
 [overview]: #overview
 
-Configure Kyverno resource webhook configurations based on policy settings.
+Configure Kyverno resource webhook configurations based on policy settings. With Kyverno 1.11, the webhooks are registered for selected resources (by policies) with `apiGroups`, `apiVersions` and `resources`. This KDP proposes to register these resources' webhooks with the fine-grained filters such as label selectors, namespace selectors and so on.
 
 # Definitions
 [definitions]: #definitions
