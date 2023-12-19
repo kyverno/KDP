@@ -29,7 +29,7 @@ Configure Kyverno resource webhook configurations based on policy settings.
 # Definitions
 [definitions]: #definitions
 
-Kyverno has two webhook configurations registered for the selected resources by policies, a MutatingWebhookConfiguration and a ValidatingWebhookConfiguration respectively. For brevity, this proposal simply uses "webhooks" to refer to the two mentioned webhook configurations.
+Kyverno has two webhook configurations that are auto-created and managed for resources selected by policies, a MutatingWebhookConfiguration and a ValidatingWebhookConfiguration respectively. For brevity, this proposal simply uses "webhooks" to refer to the two mentioned webhook configurations.
 
 # Motivation
 [motivation]: #motivation
