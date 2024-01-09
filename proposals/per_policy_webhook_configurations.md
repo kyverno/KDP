@@ -24,7 +24,7 @@
 # Overview
 [overview]: #overview
 
-Configure Kyverno resource webhook configurations based on policy settings. With Kyverno 1.11, the webhooks are registered for selected resources (by policies) with `apiGroups`, `apiVersions` and `resources`. This KDP proposes to register these resources' webhooks with the fine-grained filters such as label selectors, namespace selectors and so on.
+Configure Kyverno resource webhook configurations based on policy settings. With Kyverno 1.11, the webhooks are registered for selected resources (by policies) with `apiGroups`, `apiVersions` and `resources`. This KDP proposes to register these resources' webhooks with the fine-grained filters via `matchConditions`.
 
 # Definitions
 [definitions]: #definitions
@@ -48,64 +48,12 @@ Benefits of policy based webhooks:
 
 There are two dimensions for this feature:
 
-1. offer users the option to configure webooks' attributes including `matchConditions`, `objectSelector` and `namespaceSelector` based on the policy settings
+1. offer users the option to configure webooks' attributes via `matchConditions` based on the policy settings, can be later extended to `namespaceSelector`
 2. register webhooks based on the policy type, specifically to configure the `scope` attribute of webhooks for namespaced policies
 
 The following snippets list out how policy configurations are transformed to the webhook configurations.
 
-**a. selectors that filters resource objects**
-
-The existing attribute `spec.rules.match.(any/all).resources.selector` can be transformed to the webhooks `objectSelector`.
-```yaml
-spec:
-  rules:
-    - match:
-        all:
-        - resources:
-            selector:
-              matchLabels:
-                foo: bar
-```
-The above rule will be transformed to the following webhook configuration.
-```yaml
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-webhooks:
-- name: my-webhook.example.com
-  objectSelector:
-    matchLabels:
-      foo: bar
-```
-
-**b. selectors that filters the resources' namespaces**
-The existing attribute `spec.rules.match.(any/all).resources.namespaceSelector` can be transformed to the webhooks `namespaceSelector`.  
-
-```yaml
-spec:
-  rules:
-  - match:
-      all:
-      - resources:
-          namespaceSelector:
-            matchExpressions:
-            - key: foo.com/managed-state
-              operator: In
-              values:
-              - managed
-```
-The above rule will be transformed to the following webhook configuration.
-```yaml
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-webhooks:
-  - name: my-webhook.example.com
-    namespaceSelector:
-      matchExpressions:
-        - key: foo.com/managed-state
-          operator: In
-          values: ["managed"]
-```
-**c. configure the webhooks' `matchConditions` via CEL expressions (requires Kubernetes 1.27+)**
+**a. configure the webhooks' `matchConditions` via CEL expressions (requires Kubernetes 1.27+)**
 The new attribute will be added to Kyverno policy `spec.rules.match.(any/all).resources.matchConditions`.
 ```yaml
 spec:
@@ -130,34 +78,7 @@ webhooks:
     - name: 'exclude-kubelet-requests'
       expression: '!("system:nodes" in request.userInfo.groups)' 
 ```
-
-**d. filter by the request operations**
-The existing attribute `spec.rules.match.(any/all).resources.operations` can be transformed to the operations per webhook's rule.  
-```yaml
-spec:
-  rules:
-    - match:
-        all:
-        - resources:
-            kinds:
-              - apps/v1/Deployment
-            operations:
-              - CREATE
-```
-The above rule will be transformed to the following webhook configuration.
-```yaml
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-webhooks:
-- name: my-webhook.example.com
-  rules:
-  - operations: ["CREATE"]
-    apiGroups: ["apps"]
-    apiVersions: ["v1"]
-    resources: ["deployments"]
-```
-
-**e. configure webhook's scope based on the policy type**
+**b. configure webhook's scope based on the policy type**
 
 By default the scope of the registered webhooks rules are set to "*" which means no scope restrictions. For a namespaced policy, the scope will be registered as "Namespaced".
 
@@ -195,6 +116,32 @@ webhooks:
     scope: Namespaced
 ```
 
+**c. filter by the request operations**
+The existing attribute `spec.rules.match.(any/all).resources.operations` can be transformed to the operations per webhook's rule.  
+```yaml
+spec:
+  rules:
+    - match:
+        all:
+        - resources:
+            kinds:
+              - apps/v1/Deployment
+            operations:
+              - CREATE
+```
+The above rule will be transformed to the following webhook configuration.
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+webhooks:
+- name: my-webhook.example.com
+  rules:
+  - operations: ["CREATE"]
+    apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments"]
+```
+
 # Implementation
 
 TBD.
@@ -202,6 +149,8 @@ TBD.
 ## Link to the Implementation PR
 
 https://github.com/kyverno/kyverno/pull/8065 registers the webhook's scope based on the policy type.
+
+https://github.com/kyverno/kyverno/pull/8437 registers the webhook operations based on the policy rule definitions.
 
 ## Other requirements
 
