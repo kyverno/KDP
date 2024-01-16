@@ -24,12 +24,12 @@
 # Overview
 [overview]: #overview
 
-Configure Kyverno resource webhook configurations based on policy settings. With Kyverno 1.11, the webhooks are registered for selected resources (by policies) with `apiGroups`, `apiVersions` and `resources`. This KDP proposes to register these resources' webhooks with the fine-grained filters via `matchConditions`.
+Configure Kyverno resource webhook configurations based on policy settings. With Kyverno 1.11, the webhooks are registered for selected resources (by policies) with `apiGroups`, `apiVersions` and `resources`. This KDP proposes to register these resources' webhooks with the fine-grained filters.
 
 # Definitions
 [definitions]: #definitions
 
-Kyverno has two webhook configurations that are auto-created and managed for resources selected by policies, a MutatingWebhookConfiguration and a ValidatingWebhookConfiguration respectively. For brevity, this proposal simply uses "webhooks" to refer to the two mentioned webhook configurations.
+Kyverno has two webhook configurations that are auto-created and managed for resources selected by policies, a MutatingWebhookConfiguration `kyverno-resource-mutating-webhook-cfg` and a ValidatingWebhookConfiguration `kyverno-resource-validating-webhook-cfg` respectively. This proposal uses validatingwebhookconfiguration to demonstrate the proposed solution, the same applies to the mutatingwebhookconfiguration.
 
 # Motivation
 [motivation]: #motivation
@@ -42,42 +42,79 @@ From [#9111](https://github.com/kyverno/kyverno/issues/9111) and [#8063](https:/
 Benefits of policy based webhooks:
 1. offers the flexibility for webhook configurations
 2. prevents unexpected webhook failures
-3. reduces the admission review processing duration
 
 # Proposal
 
-There are two dimensions for this feature:
+There are three dimensions for this feature:
 
-1. offer users the option to configure webooks' attributes via `matchConditions` based on the policy settings, can be later extended to `namespaceSelector`
-2. register webhooks based on the policy type, specifically to configure the `scope` attribute of webhooks for namespaced policies
-
-The following snippets list out how policy configurations are transformed to the webhook configurations.
+a. offer users the option to configure webooks' attributes via `matchConditions` based on the policy settings, can be later extended to `namespaceSelector`
+b. register webhooks based on the policy type, specifically to configure the `scope` attribute of webhooks for namespaced policies
+c. `operations`
 
 **a. configure the webhooks' `matchConditions` via CEL expressions (requires Kubernetes 1.27+)**
-The new attribute will be added to Kyverno policy `spec.rules.match.(any/all).resources.matchConditions`.
+
+A new attribute will be added to Kyverno policy `spec.webhookMatchConditions`:
+
+- similar to `spec.failurePolicy`, `spec.webhookMatchConditions` is a per policy based configuration. It will be converted to `webhooks.matchConditions` directly in validatingwebhookconfiguration, the name for each webhook will follow the naming convention "validate.kyverno.svc-\<failure policy\>-\<policy type\>-\<policy name\>". Each policy with `webhookMatchConditions` will add one entry in `validatingwebhookconfiguration.webhooks`.
+- matching admission requests will be forwarded to and served at path `/validate/matchconditions/fail` by default, in case `spec.failurePolicy=Ignore`, requests are served at `/validate/matchconditions/ignore`.
+
+Given this clusterpolicy with two rules, it will be transformed to the validatingwebhookconfiguration listed below:
+
+- the service path is registered at `/validate/matchconditions/fail`
+- the new webhook entry will be registered with name `validate.kyverno.svc-fail-clusterpolicy-disallow-host-pid-ipc`
+- `clusterpolicy.spec.webhookMatchConditions` is transformed to `validatingwebhookconfiguration.webhooks.matchConditions`
+- two rules matching `Pod` and `Deployment` are registered under `validatingwebhookconfiguration.webhooks.rules` respectively
+
 ```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-host-pid-ipc
 spec:
+  failurePolicy: Fail
+  webhookMatchConditions:
+  - name: 'exclude-kubelet-requests'
+    expression: '!("system:nodes" in request.userInfo.groups)' 
   rules:
   - match:
-      all:
+      any:
       - resources:
-          matchConditions:
-            matchExpressions:
-            # Match requests made by non-node users.
-            - name: 'exclude-kubelet-requests'
-              expression: '!("system:nodes" in request.userInfo.groups)' 
+          kinds:
+          - Pod
+    name: validate-hostPID-hostIPC
+  - match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+    name: auto-gen-validate-hostPID-hostIPC
 ```
-The above rule will be transformed to the following webhook configuration.
+
 ```yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
+metadata:
+  name: "kyverno-resource-validating-webhook-cfg"
 webhooks:
-  - name: my-webhook.example.com
-    # note: Kubernetes allows up to 64 matchConditions per webhook
-    matchConditions:
-    - name: 'exclude-kubelet-requests'
-      expression: '!("system:nodes" in request.userInfo.groups)' 
+- name: "validate.kyverno.svc-fail-clusterpolicy-disallow-host-pid-ipc"
+  clientConfig:
+    service:
+      name: kyverno-svc
+      namespace: kyverno
+      path: /validate/matchconditions/fail
+      port: 443
+  matchConditions:
+  - name: 'exclude-kubelet-requests'
+    expression: '!("system:nodes" in request.userInfo.groups)' 
+  rules:
+  - apiGroups:   [""]
+    apiVersions: ["v1"]
+    resources:   ["pods"]
+  - apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments"]
 ```
+
 **b. configure webhook's scope based on the policy type**
 
 By default the scope of the registered webhooks rules are set to "*" which means no scope restrictions. For a namespaced policy, the scope will be registered as "Namespaced".
@@ -105,7 +142,7 @@ The above rule will be transformed to the following webhook configuration.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 webhooks:
-- name: my-webhook.example.com
+- name: validate.kyverno.svc-fail
   rules:
   - apiGroups:
     - '*'
@@ -134,7 +171,7 @@ The above rule will be transformed to the following webhook configuration.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 webhooks:
-- name: my-webhook.example.com
+- name: validate.kyverno.svc-fail
   rules:
   - operations: ["CREATE"]
     apiGroups: ["apps"]
@@ -154,7 +191,7 @@ https://github.com/kyverno/kyverno/pull/8437 registers the webhook operations ba
 
 ## Other requirements
 
-- All the mentioned attributes under the policy `match` block will be examined when creating policy reports. While this is not necessary needed when Kyverno processes the admission requests as they are already filtered by the webhook. The optimization can be made to accelerate the admission review process.
+- Policies with `spec.webhookMatchConditions` will be examined when creating policy reports. For match conditions that contain userInfo or other RBAC related payloads, Kyverno will skip creating reports.
 
 # Migration (OPTIONAL)
 
