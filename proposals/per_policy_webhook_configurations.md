@@ -29,7 +29,7 @@ Configure Kyverno resource webhook configurations based on policy settings. With
 # Definitions
 [definitions]: #definitions
 
-Kyverno has two webhook configurations that are auto-created and managed for resources selected by policies, a MutatingWebhookConfiguration `kyverno-resource-mutating-webhook-cfg` and a ValidatingWebhookConfiguration `kyverno-resource-validating-webhook-cfg` respectively. This proposal uses validatingwebhookconfiguration to demonstrate the proposed solution, the same applies to the mutatingwebhookconfiguration.
+Kyverno has two webhook configurations that are auto-created and managed for resources selected by policies, a MutatingWebhookConfiguration `kyverno-resource-mutating-webhook-cfg` and a ValidatingWebhookConfiguration `kyverno-resource-validating-webhook-cfg` respectively. This proposal uses validatingwebhookconfiguration to demonstrate the proposed solution, the same applies to the resource mutatingwebhookconfiguration.
 
 # Motivation
 [motivation]: #motivation
@@ -55,15 +55,10 @@ c. configure rule operations in validatingwebhookconfiguration based on `operati
 
 A new attribute will be added to Kyverno policy `spec.webhookMatchConditions`:
 
-- similar to `spec.failurePolicy`, `spec.webhookMatchConditions` is a per policy based configuration. It will be converted to `webhooks.matchConditions` directly in validatingwebhookconfiguration, the name for each webhook will follow the naming convention "validate.kyverno.svc-\<failure policy\>-\<policy type\>-\<policy name\>". Each policy with `webhookMatchConditions` will add one entry in `validatingwebhookconfiguration.webhooks`.
-- matching admission requests will be forwarded to and served at path `/validate/matchconditions/fail` by default, in case `spec.failurePolicy=Ignore`, requests are served at `/validate/matchconditions/ignore`.
+- similar to `spec.failurePolicy`, `spec.webhookMatchConditions` is a per policy based configuration. It will be converted to `webhooks.matchConditions` directly in validatingwebhookconfiguration, the name for each webhook will follow the naming convention `validate.kyverno.svc.<failure policy>.<policy type>.<policy name>`. Each policy with `webhookMatchConditions` will add one entry in `validatingwebhookconfiguration.webhooks`.
+- matching admission requests will be forwarded to and served at path `/validate/matchconditions/fail` by default. In case `spec.failurePolicy=Ignore`, requests are served at `/validate/matchconditions/ignore`.
 
-Given this clusterpolicy with two rules, it will be transformed to the validatingwebhookconfiguration listed below:
-
-- the service path is registered at `/validate/matchconditions/fail`
-- the new webhook entry will be registered with name `validate.kyverno.svc-fail-clusterpolicy-disallow-host-pid-ipc`
-- `clusterpolicy.spec.webhookMatchConditions` is transformed to `validatingwebhookconfiguration.webhooks.matchConditions`
-- two rules matching `Pod` and `Deployment` are registered under `validatingwebhookconfiguration.webhooks.rules` respectively
+Given this clusterpolicy with two rules, it will be transformed to validatingwebhookconfiguration listed below.
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -90,13 +85,18 @@ spec:
     name: auto-gen-validate-hostPID-hostIPC
 ```
 
+- the service path is registered at `/validate/matchconditions/fail`
+- the new webhook entry will be registered with name `validate.kyverno.svc.fail.clusterpolicy.disallow-host-pid-ipc`
+- `clusterpolicy.spec.webhookMatchConditions` is transformed to `validatingwebhookconfiguration.webhooks.matchConditions`
+- two rules matching `Pod` and `Deployment` are registered under `validatingwebhookconfiguration.webhooks.rules` respectively
+
 ```yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: "kyverno-resource-validating-webhook-cfg"
 webhooks:
-- name: "validate.kyverno.svc-fail-clusterpolicy-disallow-host-pid-ipc"
+- name: "validate.kyverno.svc.fail.clusterpolicy.disallow-host-pid-ipc"
   clientConfig:
     service:
       name: kyverno-svc
@@ -137,7 +137,9 @@ spec:
               kinds:
                 - '*'
 ```
+
 The above rule will be transformed to the following webhook configuration.
+
 ```yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -154,7 +156,9 @@ webhooks:
 ```
 
 **c. filter by the request operations**
-The existing attribute `spec.rules.match.(any/all).resources.operations` can be transformed to the operations per webhook's rule.  
+
+The existing attribute `spec.rules.match.(any/all).resources.operations` will be transformed to the operations per webhook's rule.  
+
 ```yaml
 spec:
   rules:
@@ -166,7 +170,9 @@ spec:
             operations:
               - CREATE
 ```
+
 The above rule will be transformed to the following webhook configuration.
+
 ```yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
