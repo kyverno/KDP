@@ -47,9 +47,9 @@ Benefits of policy based webhooks:
 
 There are three dimensions for this feature:
 
-a. offer users the option to configure webooks' attributes via `matchConditions` based on the policy settings, can be later extended to `namespaceSelector`
-b. register webhooks based on the policy type, specifically to configure the `scope` attribute of webhooks for namespaced policies
-c. `operations`
+a. configure `matchConditions` in validatingwebhookconfiguration via `webhookMatchConditions` based on the policy definition
+b. register webhook's scope based on the policy type, specifically to configure the `scope` attribute of the validatingwebhookconfiguration for namespaced policies
+c. configure rule operations in validatingwebhookconfiguration based on `operations` defined in a Kyverno rule
 
 **a. configure the webhooks' `matchConditions` via CEL expressions (requires Kubernetes 1.27+)**
 
