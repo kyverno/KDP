@@ -72,7 +72,7 @@ spec:
 
 This resource allows authors to declare what Kubernetes resource should be prefetched. The `group` and `version` are optional. If not specified, the preferred versions should be used. An optional `namespace` can be used to only store resources from the namespace, rather than across all namespaces which is the behavior if a namespace is not specified.
 
-2. `APICall`: An APICall is an external API call response that should be prefetched, to create a `GlobalContextEntry` of the APICall type, the following resource should be created:
+2. `apiCall`: An APICall is an external API call response that should be prefetched, to create a `GlobalContextEntry` of the APICall type, the following resource should be created:
 
 ```yaml
 apiVersion: kyverno.io/v2alpha1
