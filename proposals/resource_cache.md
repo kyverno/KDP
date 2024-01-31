@@ -63,7 +63,7 @@ kind: GlobalContextEntry
 metadata:
   name: ingress
 spec:
-  k8sresource:
+  k8sResource:
     group: "apis/networking.k8s.io"
     version: "v1"
     kind: "ingresses"
