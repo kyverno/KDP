@@ -159,7 +159,7 @@ kind: GlobalContextEntry
 metadata:
   name: staging_deployments
 spec:
-  k8sresource:
+  k8sResource:
     group: "apps"
     version: "v1"
     kind: "deployments"
