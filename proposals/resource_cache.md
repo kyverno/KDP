@@ -54,7 +54,7 @@ There are two parts to this feature:
 
 Users can manage which resources to cache by creating a new custom resource called `GlobalContextEntry` provided by Kyverno. This will decouple the creation and usage of a global entry. 
 
-A `GlobalContextEntry` will be of two types:
+A `GlobalContextEntry` will can be either of the following types:
 1. `k8sResource`: A resource is a Kubernetes resource that should be prefetched, to create a `GlobalContextEntry` of resource type, the following resource should be created:
 
 ```yaml
@@ -91,7 +91,9 @@ spec:
 
 This allows authors to declare what API response should be stored. The `url` is the URL where the request will be sent. `caBundle` is a PEM-encoded CA bundle that will be used to validate the server certificate. The `refreshIntervalSeconds` is the interval after which the URL will be reached again to refresh the entry.
 
-To reference these cache entries in a policy, we can add them to the context variable as follows,
+One global context entry can have only one `k8sResource` or `apiCall`.
+
+To reference these context entries in a policy, we can add them to the context variable as follows,
 ```yaml
 context:
   - name: ingresses
