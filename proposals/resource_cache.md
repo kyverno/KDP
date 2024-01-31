@@ -55,7 +55,7 @@ There are two parts to this feature:
 Users can manage which resources to cache by creating a new custom resource called `GlobalContextEntry` provided by Kyverno. This will decouple the creation and usage of a global entry. 
 
 A `GlobalContextEntry` will be of two types:
-1. `K8sResource`: A resource is a Kubernetes resource that should be prefetched, to create a `GlobalContextEntry` of resource type, the following resource should be created:
+1. `k8sResource`: A resource is a Kubernetes resource that should be prefetched, to create a `GlobalContextEntry` of resource type, the following resource should be created:
 
 ```yaml
 apiVersion: kyverno.io/v2alpha1
