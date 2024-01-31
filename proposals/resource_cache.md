@@ -1,8 +1,8 @@
 # Meta
 [meta]: #meta
-- Name: Resource Cache
+- Name: Prefetched Global Context Entry
 - Start Date: Aug 7, 2023
-- Update Date: Sep 24th, 2023
+- Update Date: Jan 31st, 2024
 - Author(s): @JimBugwadia
 
 # Table of Contents
@@ -49,34 +49,34 @@ From: https://github.com/kyverno/kyverno/issues/4459
 # Proposal
 
 There are two parts to this feature:
-1. Allow users to manage which resources should be cached
-2. Allow policy rules to reference cached resource data
+1. Allow users to manage which resources should be prefetched
+2. Allow policy rules to reference global context data
 
-Users can manage which resources to cache by creating a new custom resource called `CachedContextEntry` provided by Kyverno. This will decouple the creation and usage of a cache entry. 
+Users can manage which resources to cache by creating a new custom resource called `GlobalContextEntry` provided by Kyverno. This will decouple the creation and usage of a global entry. 
 
-A `CachedContextEntry` will be of two types:
-1. `Resource`: A resource is a Kubernetes resource that should be cached, to create a `CachedContextEntry` of resource type, the following resource should be created:
+A `GlobalContextEntry` will be of two types:
+1. `K8sResource`: A resource is a Kubernetes resource that should be prefetched, to create a `GlobalContextEntry` of resource type, the following resource should be created:
 
 ```yaml
 apiVersion: kyverno.io/v2alpha1
-kind: CachedContextEntry
+kind: GlobalContextEntry
 metadata:
   name: ingress
 spec:
-  resource:
+  k8sresource:
     group: "apis/networking.k8s.io"
     version: "v1"
     kind: "ingresses"
     namespace: apps
 ```
 
-This resource allows authors to declare what Kubernetes resource should be cached. The `group` and `version` are optional. If not specified, the preferred versions should be used. An optional `namespace` can be used to only cache resources in the namespace, rather than across all namespaces which is the behavior if a namespace is not specified.
+This resource allows authors to declare what Kubernetes resource should be prefetched. The `group` and `version` are optional. If not specified, the preferred versions should be used. An optional `namespace` can be used to only store resources from the namespace, rather than across all namespaces which is the behavior if a namespace is not specified.
 
-2. `APICall`: An APICall is an external API call response that should be cached, to create a `CachedContextEntry` of the APICall type, the following resource should be created:
+2. `APICall`: An APICall is an external API call response that should be prefetched, to create a `GlobalContextEntry` of the APICall type, the following resource should be created:
 
 ```yaml
 apiVersion: kyverno.io/v2alpha1
-kind: CachedContextEntry
+kind: GlobalContextEntry
 metadata:
   name: ingress
 spec:
@@ -89,32 +89,30 @@ spec:
     refreshIntervalSeconds: 10
 ```
 
-This allows authors to declare what API response should be cached. The `url` is the URL where the request will be sent. `caBundle` is a PEM-encoded CA bundle that will be used to validate the server certificate. The `refreshIntervalSeconds` is the interval after which the URL will be reached again to refresh the entry.
+This allows authors to declare what API response should be stored. The `url` is the URL where the request will be sent. `caBundle` is a PEM-encoded CA bundle that will be used to validate the server certificate. The `refreshIntervalSeconds` is the interval after which the URL will be reached again to refresh the entry.
 
 To reference these cache entries in a policy, we can add them to the context variable as follows,
 ```yaml
 context:
   - name: ingresses
-    cachedContextEntry:
+    globalContext:
       name: ingress
       jmespath: "ingresses | items[].spec.rules[].host"
 ```
 
-`cachedContextEntry.name` is the name of the entry to be used. The JMESPath is optional and is applied to add a resulting subset of the resource data to the rule context.
+`globalContextEntry.name` is the name of the entry to be used. The JMESPath is optional and is applied to add a resulting subset of the resource data to the rule context.
 
 # Implementation
 
-Resource cache will require an in-memory cache that will be stored in every controller. We will store both types of context entries as follows:
+Global context will require an in-memory store that will be stored in every controller. We will store both types of context entries as follows:
 
 ## Kubernetes resource
 
-Kyverno will use a Kubernetes dynamic client to create generic informers and listers to cache any Kubernetes resource. These listers will then be stored in the cache and will be accessed when they are referenced in a policy.
+Kyverno will use a Kubernetes dynamic client to create generic informers and listers to cache any Kubernetes resource. These listers will then be stored in the memory and will be accessed when they are referenced in a policy.
 
 ## External API Call
 
-Kyverno will store these in the same cache, APICall cache entry will require polling to update the cache entry at the specified interval.
-
-The Cache will not be ready until all the entries have been added to it. There will be. There will be a max memory limit and older entries will get evicted when cache is full. 
+Kyverno will store these in the same store, APICall context entry will require polling to update the cache entry at the specified interval.
 
 ## Other requirements
 
@@ -124,11 +122,11 @@ It would be useful to add cache metrics to show cache usage for observability an
 
 ### Failure handling
 
-The assumption is that the cache is kept up-to-date. We will need to think about any potential race conditions, especially during startup, and how to handle scenarios where the cache is not populated.
+The assumption is that the global context is kept up-to-date. We will need to think about any potential race conditions, especially during startup, and how to handle scenarios where the global context is not populated.
 
 ### Failure 
 
-When a `resource` or `apiCall` entry fails, a policy error should be thrown with the error received from the cache entry. When we fail to create a cached context entry. An invalid entry should be created containing the error. When this entry is accessed by a policy, the error encountered during creation should be returned.
+When a `resource` or `apiCall` entry fails, a policy error should be thrown with the error received from the global context entry. When we fail to create a global context entry. An invalid entry should be created containing the error. When this entry is accessed by a policy, the error encountered during creation should be returned.
 
 ## Link to the Implementation PR
 
@@ -138,7 +136,7 @@ TBD
 
 There is no automated migration. 
 
-However, to leverage resource caching, users can convert API calls to the new `resourceCache` declaration.
+However, to leverage resource caching, users can convert API calls to the new `globalContext` declaration.
 
 Here are some API calls from sample policies along with the corresponding `resourceCache` declarations:
 
@@ -154,15 +152,27 @@ https://kyverno.io/policies/other/e-l/ensure-production-matches-staging/ensure-p
 
 can be converted to:
 
+Context declaration:
+```yaml
+apiVersion: kyverno.io/v2alpha1
+kind: GlobalContextEntry
+metadata:
+  name: staging_deployments
+spec:
+  k8sresource:
+    group: "apps"
+    version: "v1"
+    kind: "deployments"
+    namespace: staging
+```
+
+Context reference in policy:
 ```yaml
     context:
     - name: deployment_count
-      resourceCache:
-        group: "apps"
-        version: "v1"
-        kind: "deployments"
-        namespace: "staging"
-        jmesPath: "items[?metadata.name=='{{ request.object.metadata.name }}'] || `[]` | length(@)"
+      globalContext:
+        name: staging_deployments
+        jmesPath: "[?metadata.name=='{{ request.object.metadata.name }}'] || `[]` | length(@)"
 ```
 
 # Drawbacks
