@@ -50,7 +50,9 @@ From: https://github.com/kyverno/kyverno/issues/4459
 
 There are two parts to this feature:
 1. Allow users to manage which resources should be prefetched
-2. Allow policy rules to reference global context data
+2. Allow policy rules to reference global context data.
+
+The global context is populated when Kyverno is started, and can be referenced by multiple policy rules. Kubernetes resource data, fetched from the API server is automatically updated based on events. Data fetched from other sources can be periodically updated.
 
 Users can manage which resources to cache by creating a new custom resource called `GlobalContextEntry` provided by Kyverno. This will decouple the creation and usage of a global entry. 
 
