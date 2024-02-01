@@ -1,9 +1,9 @@
 # Meta
 [meta]: #meta
-- Name: Prefetched Global Context Entry
+- Name: Global Context Entry
 - Start Date: Aug 7, 2023
 - Update Date: Jan 31st, 2024
-- Author(s): @JimBugwadia
+- Author(s): @JimBugwadia @vishal-chdhry
 
 # Table of Contents
 [table-of-contents]: #table-of-contents
@@ -57,7 +57,7 @@ The global context is populated when Kyverno is started, and can be referenced b
 Users can manage which resources to cache by creating a new custom resource called `GlobalContextEntry` provided by Kyverno. This will decouple the creation and usage of a global entry. 
 
 A `GlobalContextEntry` will can be either of the following types:
-1. `k8sResource`: A resource is a Kubernetes resource that should be prefetched, to create a `GlobalContextEntry` of resource type, the following resource should be created:
+1. `kubernetesResource`: A resource is a Kubernetes resource that should be prefetched, to create a `GlobalContextEntry` of resource type, the following resource should be created:
 
 ```yaml
 apiVersion: kyverno.io/v2alpha1
@@ -65,7 +65,7 @@ kind: GlobalContextEntry
 metadata:
   name: ingress
 spec:
-  k8sResource:
+  kubernetesResource:
     group: "apis/networking.k8s.io"
     version: "v1"
     kind: "ingresses"
@@ -93,7 +93,7 @@ spec:
 
 This allows authors to declare what API response should be stored. The `url` is the URL where the request will be sent. `caBundle` is a PEM-encoded CA bundle that will be used to validate the server certificate. The `refreshIntervalSeconds` is the interval after which the URL will be reached again to refresh the entry.
 
-One global context entry can have only one `k8sResource` or `apiCall`.
+One global context entry can have only one `kubernetesResource` or `apiCall`.
 
 To reference these context entries in a policy, we can add them to the context variable as follows,
 ```yaml
@@ -163,7 +163,7 @@ kind: GlobalContextEntry
 metadata:
   name: staging_deployments
 spec:
-  k8sResource:
+  kubernetesResource:
     group: "apps"
     version: "v1"
     kind: "deployments"
