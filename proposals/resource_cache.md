@@ -108,7 +108,7 @@ context:
 
 # Implementation
 
-Global context will require an in-memory store that will be stored in every controller. We will store both types of context entries as follows:
+The global context uses an in-memory store in each controller instance. We will store both types of context entries as follows:
 
 ## Kubernetes resource
 
