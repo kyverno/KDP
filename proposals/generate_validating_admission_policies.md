@@ -339,6 +339,235 @@ In Kyverno policies, some common settings can be applied to all rules. We will d
       
       Note: specifying namespaces by their names is not supported in ValidatingAdmissionPolicies. Therefore, in the generated VAPs, namespaceSelectors would be used to match a namespace name.
 
+- Only the following combinations of `match` and `exclude` block can result of generating ValidatingAdmissionPolicies:
+
+  1. Match multiple resources and exclude one of them by name.
+    
+      Kyverno policy:
+
+      ```yaml
+      match:
+        any:
+        - resources:
+            kinds:
+            - Deployment
+            - StatefulSet
+            - ReplicaSet
+            - DaemonSet
+            operations:
+            - CREATE
+            - UPDATE
+      exclude:
+        any:
+        - resources:
+            kinds:
+            - Deployment
+            operations:
+            - CREATE
+            - UPDATE
+            names:
+            - "testing"
+      ```
+
+      ValidatingAdmissionPolicy:
+      
+      ```yaml
+      matchConstraints:
+        resourceRules:
+          - apiGroups:     ["apps"]
+            apiVersions:   ["v1"]
+            operations:    ["CREATE", "UPDATE"]
+            resources:     ["deployments", "statefulsets", "replicasets", "daemonsets"]
+        excludeResourceRules:
+          - apiGroups:     ["apps"]
+            apiVersions:   ["v1"]
+            operations:    ["CREATE", "UPDATE"]
+            resources:     ["deployments"]
+            resourceNames: ["testing"]
+      ```
+  
+  2. Match resources and exclude some of them from specific namespaces.
+
+      Kyverno policy:
+
+      ```yaml
+      match:
+        any:
+        - resources:
+            kinds:
+            - Deployment
+            operations:
+            - CREATE
+            - UPDATE
+      exclude:
+        any:
+        - resources:
+            namespaces:
+            - testing-ns
+            - staging-ns
+      ```
+
+      ValidatingAdmissionPolicy:
+      ```yaml
+      matchConstraints:
+        resourceRules:
+          - apiGroups:     ["apps"]
+            apiVersions:   ["v1"]
+            operations:    ["CREATE", "UPDATE"]
+            resources:     ["deployments"]
+        excludeResourceRules:
+          - apiGroups:     [""]
+            apiVersions:   ["v1"]
+            operations:    ["CREATE", "UPDATE"]
+            resources:     ["namespaces"]
+            resourceNames: ["testing-ns", "staging-ns"]
+      ```
+
+      Note: `exclude.any.resources[*].namespaces` is converted as a rule in the `excludeResourceRules`. It cannot be converted as a `namespaceSelector` due to the fact that both matching and excluding resources would be constrained by the `namespaceSelector` using AND logic in the VAPs.
+
+  3. Match resources by `namespaceSelector` and exclude some of them by name.
+     
+      Kyverno policy:
+
+      ```yaml
+      match:
+        any:
+        - resources:
+            kinds:
+            - Deployment
+            operations:
+            - CREATE
+            - UPDATE
+            namespaceSelector:
+              matchLabels:
+                app: critical
+      exclude:
+        any:
+        - resources:
+            kinds:
+            - Deployment
+            operations:
+            - CREATE
+            - UPDATE
+            names:
+            - "testing"
+      ```
+
+      ValidatingAdmissionPolicy:
+
+      ```yaml
+      matchConstraints:
+        resourceRules:
+          - apiGroups:     ["apps"]
+            apiVersions:   ["v1"]
+            operations:    ["CREATE", "UPDATE"]
+            resources:     ["deployments"]
+        excludeResourceRules:
+          - apiGroups:     ["apps"]
+            apiVersions:   ["v1"]
+            operations:    ["CREATE", "UPDATE"]
+            resources:     ["deployments"]
+            resourceNames: ["testing"]
+        namespaceSelector:
+          matchLabels:
+            app: critical
+      ```
+  
+  4. Match resources by `selector` and exclude some of them by name.
+
+     Kyverno policy:
+
+     ```yaml
+     match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          operations:
+          - CREATE
+          - UPDATE
+          selector:
+            matchLabels:
+              app: critical
+     exclude:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          operations:
+          - CREATE
+          - UPDATE
+          names:
+          - "testing"
+     ```
+
+     ValidatingAdmissionPolicy:
+
+     ```yaml
+     matchConstraints:
+      resourceRules:
+        - apiGroups:     ["apps"]
+          apiVersions:   ["v1"]
+          operations:    ["CREATE", "UPDATE"]
+          resources:     ["deployments"]
+      excludeResourceRules:
+        - apiGroups:     ["apps"]
+          apiVersions:   ["v1"]
+          operations:    ["CREATE", "UPDATE"]
+          resources:     ["deployments"]
+          resourceNames: ["testing"]
+      objectSelector:
+        matchLabels:
+          app: critical
+     ```
+
+  5. Matching all resources and exclude one.
+
+      Kyverno Policy:
+      
+      ```yaml
+      match:
+        all:
+        - resources:
+            kinds:
+            - '*'
+            operations:
+            - CREATE
+            namespaces:
+            - production
+            - staging
+      exclude:
+        all:
+        - resources:
+              kinds:
+              - "Deployment"
+              operations:
+              - CREATE
+      ```
+
+      ValidatingAdmissionPolicy:
+
+      ```yaml
+      matchConstraints:
+        resourceRules:
+          - apiGroups:     ["*"]
+            apiVersions:   ["*"]
+            operations:    ["CREATE"]
+            resources:     ["*"]
+        excludeResourceRules:
+          - apiGroups:     ["apps"]
+            apiVersions:   ["v1"]
+            operations:    ["CREATE"]
+            resources:     ["deployments"]
+        namespaceSelector:
+          matchExpressions:
+            - key: kubernetes.io/metadata.name
+              operator: In
+              values:
+              - production
+              - staging
+      ```
+
 ### Limitations
 
 -  Kyverno policies of kind `Policy` that include a specific namespace can't be converted into ValidatingAdmissionPolicies as follows:
@@ -471,6 +700,78 @@ In Kyverno policies, some common settings can be applied to all rules. We will d
         - CREATE
         - UPDATE
   ```
+
+- Multiple resources under `match/exclude.all` resource filter.
+
+  Example:
+
+  ```yaml
+   match:
+    all:
+    - resources:
+        kinds:
+        - Deployment
+        operations:
+        - CREATE
+        - UPDATE
+    - resources:
+        kinds:
+         - Statefulset
+        operations:
+        - CREATE
+        - UPDATE
+  ```
+
+- The following combinations of `match` and `exclude` block:
+
+  1. Match resources and exclude by either `namespaceSelector` or `selector`.
+     
+     Example:
+
+     ```yaml
+     match:
+        any:
+        - resources:
+            kinds:
+            - Pod
+      exclude:
+        any:
+        - resources:
+            kinds:
+             - Pod
+            selector:
+              matchLabels:
+                app: critical
+     ```
+  
+  2. Match resources and exclude in specific namespaces
+
+    Example:
+
+    ```yaml
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          operations:
+          - CREATE
+          - UPDATE
+    exclude:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          operations:
+          - CREATE
+          - UPDATE
+          namespaces:
+          - testing-ns
+          - staging-ns
+    ```
+
+    Note: The only difference in the provided manifest compared to the previous one is the existance of `exclude.any.resources[*].kinds`. Since exclusions in `excludeResourceRules` are combined with OR logic, we cannot simultaneously exclude both deployments and namespaces. Additionally, utilizing `namespaceSelector` in ValidatingAdmissionPolicies is not feasible because both matching and excluding resources would be constrained by the `namespaceSelector` using AND logic. Consequently, VAPs are unable to handle the scenario described above.
+
 
 
 ### Validate Rules
