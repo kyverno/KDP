@@ -33,6 +33,40 @@ The `properties` field in policy report result is used to add information regard
 For mutate rules, the policy report should indicate, minimally,:
 - jsonpatch of the mutation
 - target of the mutation
+
+The report results will have a property called `patches` which has 2 properties: `jsonpatches` and `target`, `target` is the resource that is being mutated and `jsonpatches` are the patches applied to the target.
+```json
+{
+  "patches": [
+    {
+      "target": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "namespace": "default",
+        "name": "sample-resource",
+        "uid": "bb228314-0e3e-42c2-b945-63efe9279ad4"
+      },
+      "jsonpatches": [
+        {
+          "op": "replace",
+          "path": "/baz",
+          "value": "boo"
+        },
+        {
+          "op": "add",
+          "path": "/hello",
+          "value": ["world"]
+        },
+        {
+          "op": "remove",
+          "path": "/foo"
+        }
+      ]
+    }
+  ]
+}
+```
+
 Example:
 ```yaml
 apiVersion: wgpolicyk8s.io/v1alpha2
@@ -59,10 +93,10 @@ results:
     properties:
       type: mutation
       jsonpatch: '[{ "op": "replace", "path": "/baz", "value": "boo" },{ "op": "add", "path": "/hello", "value": ["world"] },{ "op": "remove", "path": "/foo" }]'
-  - policy: mutate-existing-policy
+  - policy: mutate-target-policy
     message: resource `sample-resource` mutated
     result: pass
-    rule: mutation-existing-rule
+    rule: mutation-target-rule
     scored: true
     severity: medium
     source: kyverno
@@ -71,8 +105,7 @@ results:
       seconds: 1681659534
     properties:
       type: mutation
-      jsonpatch: '[{ "op": "replace", "path": "/baz", "value": "boo" },{ "op": "add", "path": "/hello", "value": ["world"] },{ "op": "remove", "path": "/foo" }]'
-      targets: '[{"apiVersion": "v1", "kind": "Pod", "namespace": "default", "name": "sample-resource", "uid": "bb228314-0e3e-42c2-b945-63efe9279ad4"}]'
+      patches: '[{"target":{"apiVersion": "v1", "kind": "Pod", "namespace": "default", "name": "sample-resource", "uid": "bb228314-0e3e-42c2-b945-63efe9279ad4"},"jsonPatches": [{ "op": "replace", "path": "/baz", "value": "boo" },{ "op": "add", "path": "/hello", "value": ["world"] },{ "op": "remove", "path": "/foo" }]}]'
 ```
 
 For generate rules:
