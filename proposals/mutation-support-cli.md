@@ -17,18 +17,16 @@ Author: [Ammar Yasser](https://github.com/aerosouund)
 
 ## Overview
 
-Kyverno webhook controller runs as an admission controller in Kubernetes, and it mutates resources upon admission review. Such mutation is performed based on resources operations (CREATE/UPDATE/DELETE) via webhook.
-This feature currently is included in the webhook controller only, the CLI has the current behavior:
+The Kyverno webhook controller runs as an admission controller in Kubernetes, mutating existing resources upon admission review. Such mutation is performed based on resource operations (CREATE/UPDATE/DELETE) via the webhook. This feature is currently available only in the webhook controller. The CLI has the following current behavior:
 
 ### Online Operation
-an operation performed on a live kubernetes cluster and has the `--cluster` flag passed
+An operation performed on a live Kubernetes cluster with the `--cluster` flag passed.
 
-**Behavior**: No mutation occurs on the target resources fetched from the cluster.
-The output is just how many resources passed or failed as typical in the output of the cli.
+**Behavior**: No mutation occurs on the target resources fetched from the cluster. The output simply shows how many resources passed or failed, as typically seen in the CLI output:
 
 `pass: 5, fail: 0, warn: 0, error: 0, skip: 0`
 
-**Technical Explanation**: The CLI succeeds in fetching the correct resources and applies the mutation properly. but what gets returned to the report generator is still the original resource
+**Technical Explanation**: The CLI successfully fetches the correct resources and applies the mutation properly. However, what gets returned to the report generator is still the original resource.
 
 `pkg/engine/mutation.go`:
 
@@ -48,7 +46,7 @@ matchedResource = resource
 
 ### Offline Operation
 
-an operation performed on static resources passed through the `--resource` flag or from a directory
+An operation performed on static resources passed through the `--resource` flag or from a directory.
 
 **Behavior**: The CLI outputs this message
 
@@ -58,22 +56,169 @@ Handler factory requires a client but a nil client was passed, likely due to a b
 
 **Technical Explanation**:
 
-The introduction of this error message was required as a guardrail for when the mutation engine tries to fetch resources from an existing client (the object that interfaces with a kubernetes cluster for CRUD operations) that is uninitialized due to not being in cluster mode, the CLI would then panic, see [this issue](https://github.com/kyverno/kyverno/issues/6723) for additional context
+This error message was introduced as a safeguard for when the mutation engine tries to fetch resources from an uninitialized client (the object that interfaces with a Kubernetes cluster for CRUD operations) when not in cluster mode. Without this check, the CLI would panic. See [this issue](https://github.com/kyverno/kyverno/issues/6723) for additional context.
 	
 
 ## Proposal
 
-The CLI isn't going to mutate actual resources, its only required to output the changes that will be made by a mutation rather than the original resource in case of a mutation
+### apply
 
-## Example
+The apply command will receive an additional flag, `--target-resource`, which can be passed multiple times for individual resources. For example:
 
-This example adds the label `foo=bar` to deployments in the `secure` namespace 
+```bash
+kyverno apply policy-with-mutate-existing.yaml --resource=trigger1.yaml --resource=trigger2.yaml --target-resource=resource1.yaml  --target-resource=resource2.yaml 
+```
 
+Or given a directory containing resources
+
+```bash
+kyverno apply policy-with-mutate-existing.yaml /path/to/trigger/resources --target-resource=/path/to/resources 
+```
+
+When this flag is passed but the policy or policies have no mutate-existing rules, the flag should be ignored. If the flag is not passed but the policy has mutate-existing rules, a warning should be generated indicating that no resources have been passed, and the rule evaluation should be SKIPPED. The target resource flag maps to the unchanged resource, and the apply command will output the mutated resource if successful.
+
+### test
+
+An extra key will be added to the test YAML definition to define the behavior of mutate-existing with the test command:
+
+```yaml
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kyverno-test
+policies:
+  - <path/to/policy.yaml>
+  - <path/to/policy.yaml>
+resources:
+  - <path/to/resource.yaml>
+  - <path/to/resource.yaml>
+exceptions:
+  - <path/to/exception.yaml>
+  - <path/to/exception.yaml>
+targetResources: # This will be added
+  - <path/to/unmutated/resource.yaml>
+variables: variables.yaml # This will receive a new key for mutation target variables
+userinfo: user_info.yaml
+results: 
+- policy: <name> 
+  isValidatingAdmissionPolicy: false
+  rule: <name>
+  resources:
+  - <namespace_1/name_1>
+  - <namespace_2/name_2>
+  patchedResources: <file_name.yaml> # Mutated resources will be specified here, separated by ---
+  generatedResource: <file_name.yaml>
+  - <path/to/patched/resource1.yaml>
+  - <path/to/patched/resource2.yaml>
+  cloneSourceResource: <file_name.yaml>
+  kind: <kind>
+  result: pass
+```
+
+The schema of the variables file will be changed as follows:
+
+```yaml
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Values
+metadata:
+  name: values
+# existing keys
+targetResources:
+  - name: nginx-demo1
+    namespace: test1
+    values:
+      request.operation: CREATE
+  - name: nginx-demo2
+    namespace: test2
+    values:
+      request.operation: UPDATE
+```
+
+The `targetResources` key will be added, with an array of objects containing three keys: name (string), namepace (string, optional) and values (a `map[string]interface{}`).
+
+These additions will be optional and ignored if the policy does not include mutate-existing rules.
+
+### Examples
+
+This example adds data to a `ConfigMap` on namespace creation
+
+`pol.yaml`
 ```yaml
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
-  name: policy
+  name: configmap-policy
+spec:
+  mutateExistingOnPolicyUpdate: true
+  rules:
+    - name: configmap-update
+      match:
+        any: 
+        - resources:
+            kinds:
+            - Namespace
+            operations:
+              - "CREATE"
+      mutate:
+        targets:
+        - apiVersion: v1
+          kind: ConfigMap
+          namespace: "test"
+          name: "cm1"
+        patchStrategicMerge:
+          data:
+            monitored-ns: "{{ request.object.metadata.name }}"
+```
+
+`ns.yaml`
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+```
+
+`cm.yaml`
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm
+  namespace: test
+data: {}
+```
+
+Invocation:
+`kyverno apply pol.yaml --resource=ns.yaml --target-resource=cm.yaml`
+
+Should output:
+
+```
+Applying 1 policy rule(s) to 1 resource(s)...
+
+mutate policy policy applied to test/ConfigMap/cm:
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm
+  namespace: test
+data:
+  monitored-ns: staging
+---
+
+pass: 1, fail: 0, warn: 0, error: 0, skip: 0 
+```
+
+---
+
+This example adds the label `foo=bar` to deployments in the `secure` namespace in cluster mode
+
+`pol.yaml`
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: deployment-policy
 spec:
   mutateExistingOnPolicyUpdate: true
   rules:
@@ -97,7 +242,7 @@ spec:
 ```
 
 Invocation:
-`kyverno apply ~/policies/pol.yaml --cluster -n secure` 
+`kyverno apply pol.yaml --cluster -n secure` 
 
 Should output:
 
@@ -109,12 +254,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-	foo: bar <<< SHOULD REFLECT THE MODIFIED RESOURCE
-    deployment.kubernetes.io/revision: "1"
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"nginx-deployment","namespace":"secure"},"spec":{"replicas":3,"selector":{"matchLabels":{"app":"nginx"}},"template":{"metadata":{"labels":{"app":"nginx"}},"spec":{"containers":[{"image":"nginx:1.21.1","name":"nginx","ports":[{"containerPort":80}]}]}}}}
-  creationTimestamp: "2024-07-29T13:18:13Z"
-  generation: 2
+	foo: bar <<< The mutated cluster resource
   // omitted fields
 spec:
   progressDeadlineSeconds: 600
@@ -164,12 +304,10 @@ status:
     status: "True"
     type: Available
   observedGeneration: 2
-
 ---
 
 pass: 1, fail: 0, warn: 0, error: 0, skip: 0 
 ```
-
 
 ## Implementation
 
@@ -200,11 +338,11 @@ processor := processor.PolicyProcessor{
 	Out: out,
 }
 ```
-We need to return the actual mutated resource and modify the report generator to print it by changing the `matchedResource` variable to contain the mutated resource, which can be obtained from the rule response. `ruleResp.patchedTarget`	
+We need to return the actual mutated resource and modify the report generator to print it by changing the `matchedResource` variable to contain the mutated resource. Which can be obtained from the rule response: `ruleResp.patchedTarget`.
 
 ### Resources passed from the CLI directly
 
-The mutation engine should realize that when the client is nil, and create an appropriate handler that doesn't fetch resources from the cluster but applies the mutation
+If the client is nil, the mutation engine should create an appropriate handler that doesn't fetch resources from the cluster but applies the mutation directly:
 
 `pkg/engine/mutation.go`:
 
@@ -224,9 +362,8 @@ if !policyContext.AdmissionOperation() && rule.HasMutateExisting() {
 }
 ```
 
-A `MutateResourceHandler` should be returned in this case
-In case also simulation of a client update is required for non cluster operation then a kubernetes Fake client can be used to test if the mutation will fail using `k8s.io/client-go/dynamic/fake`
-In this case the client initialization must account for this scenario
+A `MutateResourceHandler` should be returned in this case.
+In case also simulation of a client update is required for non cluster operation then a kubernetes Fake client can be used to test if the mutation will fail using `k8s.io/client-go/dynamic/fake`, in this case the client initialization must account for this scenario.
 
 ```go
 func (c *ApplyCommandConfig) initStoreAndClusterClient(store *store.Store, skipInvalidPolicies SkippedInvalidPolicies) (*processor.ResultCounts, []*unstructured.Unstructured, SkippedInvalidPolicies, []engineapi.EngineResponse, dclient.Interface, error) {
@@ -255,4 +392,4 @@ And this fake client will need to be passed the resources passed in the cli and 
 
 A previous [PR](https://github.com/kyverno/kyverno/pull/5220) tried to tackle this project before, the overall solution was to include a field in the `policyContext` that conveys if the command is a test command or something else. In case it is, the `loadTargets` method reads the resource from the context, where it exists as a field called `oldResource` and appends it to the resource list.
 
-While this is still a viable approach it needs to be extended to be command agnostic, to be valid for `apply` and `test` as is the stated goal of the project. the overall idea that can be drawn from this is that the check for the nil client can be performed at the level of loading targets, this can be an alternative approach to what is proposed above
+While this is still a viable approach it needs to be extended to be command agnostic, to be valid for `apply` and `test` as is the stated goal of the project. The overall idea that can be drawn from this is that the check for the nil client can be performed at the level of loading targets, this can be an alternative approach to what is proposed above.
