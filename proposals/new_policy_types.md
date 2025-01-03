@@ -691,6 +691,176 @@ In case of generating Kubernetes ValidatingAdmissionPolicies, three VAPs, each w
 
 ### External Data Sources
 
+Kyverno currently supports four types of external data sources:
+
+1. **ConfigMaps**: Used to fetch data stored in ConfigMap resources.
+2. **Other Kubernetes Resources**: Allows querying any Kubernetes resource via the API server.
+3. **Service API Calls**: Enables making HTTP calls to external services.
+4. **OCI Image Metadata**: Retrieves image metadata from OCI registries.
+
+The new `ValidatingPolicy` CRD will leverage the parameter resources mechanism offered by Kubernetes `ValidatingAdmissionPolicy` to access ConfigMaps and other Kubernetes resources. However, `ValidatingAdmissionPolicy` does not natively support service API calls or OCI image metadata. To address this, we propose the following approaches:
+
+#### Approach 1: Data Pre-fetching and Storage in ConfigMaps
+
+For external data sources not directly supported by `ValidatingAdmissionPolicy`, Kyverno can pre-fetch the necessary data and store it in a ConfigMap. This ConfigMap can then be accessed by the policy using the parameter resources mechanism.
+
+**Process:**
+
+1. **Data Fetching**: Kyverno fetches data from external services or OCI registries based on configurations defined in the policy or a separate CRD.
+2. **Storage**: The fetched data is stored in a ConfigMap.
+3. **Policy Execution**: The `ValidatingAdmissionPolicy` references this ConfigMap via `paramRef` in the `ValidatingAdmissionPolicyBinding`.
+
+**Example:**
+
+Let's say we have a policy that needs to validate if a container image is from an allowed registry list fetched from an external API.
+
+1. **Data Fetching**: Kyverno makes an API call to `https://myregistryapi.com/allowed-registries` and retrieves a list of allowed registries.
+2. **Storage**: Kyverno stores this list in a ConfigMap named `allowed-registries-config`.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allowed-registries-config
+  namespace: kyverno
+data:
+  registries: |
+    - registry.k8s.io
+    - mycompany.com/registry
+```
+
+3. **Policy Execution**: The `ValidatingAdmissionPolicy` uses this ConfigMap:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "check-allowed-registries"
+spec:
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   [""]
+        apiVersions: ["v1"]
+        operations:  ["CREATE"]
+        resources:   ["pods"]
+  validations:
+    - expression: >-
+        object.spec.containers.all(c, 
+          params.data.registries.split(',').exists(reg, c.image.startsWith(reg))
+        )
+      message: "Image registry is not in the allowed list."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "check-allowed-registries-binding"
+spec:
+  policyName: "check-allowed-registries"
+  paramRef:
+    name: "allowed-registries-config"
+    namespace: "kyverno"
+  validationActions: [Deny]
+```
+
+**Pros:**
+
+* Leverages existing `ValidatingAdmissionPolicy` features.
+* Simplifies policy logic by abstracting data fetching.
+
+**Cons:**
+
+* Requires additional logic for data fetching and synchronization.
+* May introduce latency if data needs to be refreshed frequently.
+* Data in ConfigMaps might become stale if not updated regularly.
+
+#### Approach 2: Upstream Enhancements to ValidatingAdmissionPolicies
+
+Another approach is to propose enhancements to `ValidatingAdmissionPolicy` to support external data sources natively. This would involve extending the Kubernetes API to allow specifying external API endpoints or OCI registry details as parameters.
+
+**Example Enhancement Proposal:**
+
+Introduce a new field `externalParamRef` in `ValidatingAdmissionPolicyBinding` that allows referencing external data sources.
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "check-allowed-registries-binding"
+spec:
+  policyName: "check-allowed-registries"
+  externalParamRef:
+    apiCall:
+      url: "https://myregistryapi.com/allowed-registries"
+      method: "GET"
+      headers:
+        - name: "Authorization"
+          value: "Bearer <token>"
+    # OR
+    ociRegistry:
+      registry: "myregistry.com"
+      repository: "myrepo"
+      tag: "latest"
+  validationActions: [Deny]
+```
+
+**Pros:**
+
+* Native support for external data sources in Kubernetes.
+* Potentially more efficient and less complex than pre-fetching.
+
+**Cons:**
+
+* Requires significant changes to the Kubernetes API.
+* Longer time to implement and gain community adoption.
+* May introduce security concerns if not designed carefully.
+
+#### Approach 3: Custom Admission Webhook with CEL Support
+
+Instead of relying solely on `ValidatingAdmissionPolicy`, Kyverno could implement a custom admission webhook that supports CEL and provides built-in functions for accessing external data sources.
+
+**Process:**
+
+1. **Custom Webhook**: Kyverno runs as a webhook server.
+2. **CEL Evaluation**: The webhook evaluates CEL expressions defined in policies.
+3. **External Data Access**: Kyverno provides built-in CEL functions (e.g., `fetchURL()`, `getOCIMetadata()`) to fetch data from external sources during policy evaluation.
+
+**Example:**
+
+```yaml
+apiVersion: kyverno.io/v1alpha1
+kind: ValidatingPolicy
+metadata:
+  name: "check-allowed-registries"
+spec:
+  validations:
+    - expression: >-
+        let allowedRegistries = fetchURL("https://myregistryapi.com/allowed-registries");
+        object.spec.containers.all(c, 
+          allowedRegistries.exists(reg, c.image.startsWith(reg))
+        )
+      message: "Image registry is not in the allowed list."
+```
+
+**Pros:**
+
+* Greater flexibility and control over policy execution.
+* Can support any type of external data source.
+
+**Cons:**
+
+* Bypasses `ValidatingAdmissionPolicy` framework.
+* Requires more custom implementation and maintenance.
+* May have performance implications if not optimized.
+
+#### Other Considerations
+
+* **Caching**: Implement caching mechanisms to improve performance and reduce the load on external services.
+* **Error Handling**: Define how policies should behave when external data sources are unavailable or return errors.
+* **Security**: Securely manage credentials and access to external services.
+
 ### Built-in Variables
 
 Kyverno has the following built-in variables:
