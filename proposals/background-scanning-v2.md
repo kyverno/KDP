@@ -55,7 +55,7 @@ spec:
 
 ### Advantages:
 - This approach creates a schedule relative to the time of day, unlike [`metav1.Duration`](https://github.com/kubernetes/apimachinery/blob/master/pkg/apis/meta/v1/duration.go#L27) (e.g. `2h`, `2m30s`) which is relative to a user defined start time. Cron makes it easy to understand the precise timing of scan.
-- Cron allows complex conditions such as `0 15 10 ? * MON-FRI` (10:15 am every Monday, Tuesday, Wednesday, Thursday and Friday) or `0 15 10 ? * 6L` (10:15 am every Monday, Tuesday, Wednesday, Thursday and Friday) which is not possible using duration as interval.
+- Cron allows complex conditions such as `0 15 10 ? * MON-FRI` (10:15 am every Monday, Tuesday, Wednesday, Thursday and Friday) or `0 15 10 ? * 6L` (10:15 am on the last Friday of every month) which is not possible using duration as interval.
 - Kubernetes already has a standard implementation that uses cron, `CronJob` and has libraries that are well maintained.
 
 ### Disadvantages
