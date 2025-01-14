@@ -31,10 +31,10 @@ metadata:
   name: test
 status:
  sendStatus:
- - reportName: 179db659-a29f-42c5-a9c2-4106d01ea339
+ - eventID: 179db659-a29f-42c5-a9c2-4106d01ea339
    succeeded: true
    messagee: Send OK
- - reportName: 179db759-a22t-4hf5-al12-4106d01hdbn8
+ - eventID: 179db759-a22t-4hf5-al12-4106d01hdbn8
    succeded: false
    message: Got response 403
  conditions:
