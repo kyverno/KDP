@@ -463,49 +463,36 @@ webhooks:
     scope: 'Namespaced'
 ```
 
-Kyverno allows users to configure `timeoutSeconds`, `failurePolicy`, and `matchConditions` directly within a policy setting, via `.spec.webhookConfigurations`. 
+By default, Kyverno configures the webhook configurations at the default path, with matching resources defined in `spec.matchConstraints.resourceRules`. Kyverno also allows users to configure `timeoutSeconds`, `failurePolicy`, `matchPolicy` and `matchConditions` directly within policy settings to custom webhook configuration.
 
 For instance:
 
-```yaml=
+```yaml
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 spec:
   webhookConfiguration:
     timeoutSeconds: 30
-    failurePolicy: Ignore
-    matchConditions:
-    - name: "select-namespace"
-      expression: '(object.metadata.namespace == "cpol-fine-grained-match-conditions-ns")'
-    - name: 'exclude-requests-by-groups'
-      expression: '!("system:nodes" in request.userInfo.groups)' 
-```
-
-To adapt existing support for webhook configurations in Kyverno ClusterPolicy, the `webhookConfiguration` field will be available in the new `ValidatingPolicy` CRD.
-
-```yaml
-apiVersion: kyverno.io/v1alpha1
-kind: ValidatingPolicy
-metadata:
-  name: "demo-webhook-registration.policy.example.com"
-spec:
-  webhookConfiguration:
-    failurePolicy: Fail
-    timeoutSecond: 10s 
-    matchConditions:
-    - name: "select-namespace"
-      expression: '(object.metadata.namespace == "cpol-fine-grained-match-conditions-ns")'
+  failurePolicy: Fail
+  matchConstraints:
     matchPolicy: Equivalent
-    ## TBD - per policy level configuration?
-    ## objectSelector
-    ## namespaceSelector
+    resourceRules:
+    - apiGroups:   ["apps"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["deployments"]
+  matchConditions:
+  - name: "select-namespace"
+    expression: '(object.metadata.namespace == "cpol-fine-grained-match-conditions-ns")'
+  - name: 'exclude-requests-by-groups'
+    expression: '!("system:nodes" in request.userInfo.groups)' 
 ```
 
-As shown above, the following fields will be considered for dynamic webhook registration:
-- failurePolicy: allowed values are `Ignore` or `Fail`(default). Matching resources are categorized by this setting for webhook registration.
-- timeoutSeconds: The timeout value must be between 1 and 30 seconds. Default to 10 seconds. The max timeout will be used across validating policies timeout settings.
-- matchConditions: if specified, it will be used for fine-grained webhook configuration by registering a new webhook object at path `/validate/<failurePolicy>/finegrained/<policyName>`. This field is not related to / depend on `spec.matchConditions`.
-- matchPolicy: allowed values are `Exact` or `Equivalent`(default). If specified, it will be used for fine-grained webhook configuration by registering a new webhook object at path `/validate/<failurePolicy>/finegrained/<policyName>`.
+Kyverno will register a new webhook object based on the above validatingpolicy :
+- `webhookConfiguration.timeoutSeconds`: The timeout value must be between 1 and 30 seconds. Default to 10 seconds.
+- `failurePolicy`: allowed values are `Ignore` or `Fail`(default). Matching resources are categorized by this setting for webhook registration.
+- `matchConstraints.matchPolicy`: allowed values are `Exact` or `Equivalent`(default). If specified, a new webhook object with `Exact` match policy will be registered at path `/validate/<failurePolicy>/finegrained/<policyName>`.
+- `matchConditions`: a new webhook object with defined match conditions will be registered at path `/validate/<failurePolicy>/finegrained/<policyName>`.
 
 ### ValidationAction and AuditAnnotations
 
