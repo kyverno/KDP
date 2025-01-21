@@ -920,46 +920,23 @@ Kyverno has the following built-in variables:
 
 ### Policy Exceptions
 
-PolicyExceptions in Kyverno are used to exclude resources from policy enforcement.
+Policies typically operate at the Pod level, inspecting various attributes including container images. However, sometimes you need finer-grained control and want to exclude specific images from policy enforcement, even when other containers within the same Pod should be evaluated.
 
-```yaml=
-apiVersion: kyverno.io/v2
-kind: PolicyException
-metadata:
-  name: delta-exception
-  namespace: delta
-spec:
-  exceptions:
-  - policyName: disallow-host-namespaces
-    ruleNames:
-    - host-namespaces
-    - autogen-host-namespaces
-  match:
-    any:
-    - resources:
-        kinds:
-        - Pod
-        - Deployment
-        namespaces:
-        - delta
-        names:
-        - important-tool*
-  conditions:
-    any:
-    - key: "{{ request.object.metadata.labels.app || '' }}"
-      operator: Equals
-      value: busybox
-```
+PolicyExceptions provide a mechanism to selectively exempt resources from policy evaluations. In this section, we will focus on how to utilize PolicyExceptions to achieve image-level exclusions, particularly when working with the newer `ValidatingPolicy` CRD.
 
-To ensure compatibility with the new ValidatingPolicy type, several adjustments can be made:
+### Adapting Policy Exceptions for ValidatingPolicy CRD
 
-1. `ruleNames`: This field is unnecessary, as ValidatingPolicies don't employ the concept of rules. This field should be removed from the PolicyException spec.
+With the introduction of the `ValidatingPolicy` CRD, the schema of `PolicyException` resources needs to be updated to align with the new policy model.
 
-2. `match`: This field filters resources based on Kind. However, ValidatingPolicies utilize `matchConstraints` based on API groups, versions, operations, and resources. Therefore, the PolicyException's match field must be replaced with a matchConstraints field to align with this mechanism.
+Here are the required changes:
 
-3. `conditions`: This field is used to match resources based on a set of conditions under `any`/`all` filters. Instead, we can leverage the `matchConditions` field, which uses CEL expressions.
+1. **Removal of `ruleNames`:** `ValidatingPolicy` resources don't have the concept of individual rules within the policy definition in the same way as the older policies. Therefore, the `ruleNames` field is no longer necessary and will be removed from the `PolicyException` spec.
 
-The `PolicyException` can look like the following:
+2. **Introducing `matchConstraints`:** The `match` field, which focused on resource kinds, has been replaced with the more flexible `matchConstraints` field. This directly mirrors the `match` field in `ValidatingPolicy`, allowing for precise targeting based on API groups, versions, operations, and resource types.
+
+3. **Leveraging `matchConditions` with CEL:** The `conditions` field will be replaced by `matchConditions`, which will be CEL expressions.
+
+Here's an example of a `PolicyException` compatible with `ValidatingPolicy`:
 
 ```yaml=
 apiVersion: kyverno.io/v1alpha1
@@ -968,7 +945,7 @@ metadata:
   name: delta-exception
   namespace: delta
 spec:
-  policyNames: 
+  policyNames:
   - disallow-host-namespaces
   matchConstraints:
     resourceRules:
@@ -978,12 +955,59 @@ spec:
       resources:   ["pods"]
   matchConditions:
     - name: 'match-pod-annotations'
-      expression: > 
-        has(object.metadata.labels.app) && 
+      expression: >
+        has(object.metadata.labels.app) &&
         object.metadata.labels.app == 'busybox'
 ```
 
-How can we generate Kubernetes ValidatingAdmissionPolicies based on Kyverno's ValidatingPolicy and PolicyException CRDs?
+### Achieving Image-Level Exclusion with Policy Exceptions
+
+While policies operate at the Pod level, you often need to exclude specific container images from policy enforcement. This can be achieved by introducing a new field `images` in the PolicyExceptions.
+This field will be used later in the policy evaluation to exclude specific images from policy enforcement.
+
+For example, consider a policy that requires all containers to run as non root:
+
+```yaml=
+apiVersion: kyverno.io/v2alpha1
+kind: ValidatingPolicy
+metadata:
+  name: "require-run-as-nonroot"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   ["apps"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["pods"]
+  validations:
+    - expression: >
+        object.spec.containers.all(
+          container,
+            has(container.securityContext) &&
+            has(container.securityContext.runAsNonRoot) &&
+            container.securityContext.runAsNonRoot == true
+        )
+      message: "Running as root isn't allowed"
+```
+
+Here is an example of a `PolicyException` that excludes the images `busybox` and `nginx` from the policy enforcement:
+
+```yaml=
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: pod-security-exception
+spec:
+  exceptions:
+  - policyName: require-run-as-nonroot
+  images:
+  - busybox:latest
+  - nginx:latest
+```
+
+### Exempting specific Pod Security Standard control within a Profile
+
 
 ### JSON Payloads
 
