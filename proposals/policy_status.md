@@ -62,7 +62,7 @@ This proposal introduces a new system for Kyverno to report the operational read
 This proposal introduces new status conditions to the Kyverno Policy CRD. These conditions will track the following:
 
 - `WebhookConfigured`: Indicates whether the webhooks required for the policy are set up correctly. Relevant only for Admission controllers.
-- `CachePresence`: Indicates whether the policy has been successfully loaded into Kyverno's internal cache.
+- `PolicyCached`: Indicates whether the policy has been successfully loaded into Kyverno's internal cache.
 - `RBACPermissions`: Indicates whether Kyverno has the necessary RBAC permissions to enforce the policy.
 
 Each condition will have a status of `True` or `False`. If a condition's type is `NotReady` and the status is `False`, the policy will fail to apply unless explicitly configured otherwise through `validationFailureActionOverrides`. A condition may not be present if it's not relevant to the policy.
