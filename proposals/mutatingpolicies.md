@@ -2,6 +2,7 @@
 
 Authors: Shuting Zhao
 Created: February 18th, 2025
+Updated: May 7th, 2025
 Abstract: MutatingPolicy for Kyverno
 
 ## Overview
@@ -22,9 +23,6 @@ kind: MutatingPolicy
 metadata:
   name: "sidecar-policy.example.com"
 spec:
-  paramKind:
-    kind: Sidecar
-    apiVersion: mutations.example.com/v1
   matchConstraints:
     resourceRules:
     - apiGroups:   ["apps"]
@@ -60,9 +58,6 @@ kind: MutatingPolicy
 metadata:
   name: "sidecar-policy.example.com"
 spec:
-  paramKind:
-    kind: Sidecar
-    apiVersion: mutations.example.com/v1
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -92,12 +87,10 @@ spec:
 
 ### Mutate Existing
 
-In order to mutate existing resources, a `targetConstraints` is added to custom existing resources:
+In order to mutate existing resources, a `targets` object is added to custom existing resources:
 
-* `targetConstraints.resourceRules`: required, selects resources based on GVR.
-* `resourceRules.context`: optional, additional context lookup to filter targets.
-* `resourceRules.selector`: optional, filters targets via label selectors.
-* `resourceRules.matchConditions`: optional, filters target via CEL-based conditions.
+* `targets.matchConstraints`: required, selects existing resources to mutate based on GVR, `namespaceSelector`, `objectSelector`, etc.
+* `targets.matchConditions`: optional, filters target via CEL-based conditions.
 
 By default `spec.mutateExistingOnPolicyUpdate` is disabled, set it to `true` to mutate existing resources based on policy events.
 
@@ -115,7 +108,10 @@ spec:
       operations:  [CREATE]
       resources:   ["configmaps"]
   ## custom targets filters
-  targetConstraints:
+  targetMatchConstraints:
+  - # namespaceSelector:
+    # objectSelector:
+    # excludeResourceRules:
     resourceRules:
     - apiGroups:   [""]
       apiVersions: [v1]
@@ -132,9 +128,18 @@ spec:
           ] 
 ```
 
-The built-in variable `target` is supported to reference target object, for example:
+The built-in variable `target` is supported to reference the target object. For example, the variable `target` is used below to filter secret's namespace via `targets.matchConditions`, and to reference `.spec` object of the secret.
 
 ```yaml
+  targetsMatchConstraints:
+  - resourceRules:
+    - apiGroups:   [""]
+      apiVersions: [v1]
+      resources:   ["secrets"]
+  targetMatchConditions:
+  - name: "skip kube-system namespace"
+    expression: >-
+      target.metadata.namespace != "kube-system"
   mutations:
     - patchType: "JSONPatch"
       jsonPatch:
@@ -152,5 +157,3 @@ The built-in variable `target` is supported to reference target object, for exam
             }
           ]
 ```
-
-### Complex use cases
