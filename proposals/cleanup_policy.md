@@ -1,6 +1,6 @@
-# New Policy Type - CleanupPolicy
+# New Policy Type - DeletingPolicy
 [meta]: #meta
-- Name: CEL Cleanup Policy
+- Name: New Policy Type - Cleanup Policy
 - Start Date: 2025-05-07
 - Update data 2025-05-07
 - Author(s): fjogeleit, eddycharly
@@ -26,20 +26,20 @@ As the Kubernetes ecosystem and feature set has evolved, CEL has become the pref
 
 # Proposal
 
-- Supporting the same featureset as the existing CleanupPolicy type
+- Supporting the same featureset as the existing DeletingPolicy type
 - Using generic and similar APIs as arealdy implemented new policy types like ValidatingPolicy
     - MatchConstraints for resource selection
     - Conditions which using the MatchCondition API to define CEL based expressions for resource targeting
 
-## CleanupPolicy API
+## DeletingPolicy API
 
-This example showcases the conversion of the current Cleanup Policy API to the new CEL based approach.
+This example showcases the conversion of the current CleanupPolicy API to the new CEL based approach.
 
 ```yaml
 apiVersion: policies.kyverno.io/v1alpha1
-kind: CleanupPolicy
+kind: DeletingPolicy
 metadata:
-  name: cleanup-policy
+  name: deleting-policy
 spec:
   matchConstraints:
     resourceRules:
@@ -58,8 +58,8 @@ spec:
 
 The new API uses matchConstraints similar to the native VAP / MAP and new kyverno policy types VPOL and IVPOL. The conditions now use the MatchCondition API and are based on CEL expressions to targeting resources.
 
-* CleanupPolicies will support variables. They can be used in conditions
-* Schedule defines a valid cron expression to define when the cleanup policy will be executed
+* DeletingPolicies will support variables. They can be used in conditions
+* Schedule defines a valid cron expression to define when the deleting policy will be executed
 * DeletionPropagationPolicy defines how resources will be deleted (Foreground, Background, Orphan)
 
 The built-in variable `target` is supported to reference the target object. For example, the variable `target` is used in this policy to represent the pod resource and test its name for a given value.
