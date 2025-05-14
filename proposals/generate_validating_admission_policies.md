@@ -13,13 +13,15 @@
    + [Kyverno engine VS API server](#kyverno-engine-vs-api-server)
    + [Limitations](#limitations)
 - [Implementation](#implementation)
-   + [ClusterPolicy vs Policy](#clusterpolicy-vs-policy)
-   + [Kyverno Policy Settings](#kyverno-policy-settings)
-   + [Match/Exclude Resources](#matchexclude-resources)
-   + [Validate Rules](#validate-rules)
-   + [Audit Annotations](#audit-annotations)
-   + [Parameter Resources](#parameter-resources)
-   + [Limitations](#limitations-1)
+   + [Kyverno Policies](#kyverno-policies)
+      + [ClusterPolicy vs Policy](#clusterpolicy-vs-policy)
+      + [Kyverno Policy Settings](#kyverno-policy-settings)
+      + [Match/Exclude Resources](#matchexclude-resources)
+      + [Validate Rules](#validate-rules)
+      + [Audit Annotations](#audit-annotations)
+      + [Parameter Resources](#parameter-resources)
+      + [Limitations](#limitations-1)
+   + [Policy Exceptions](#policy-exceptions)
 - [Next Steps](#next-steps)
 
 ## Introduction
@@ -89,9 +91,9 @@ ValidatingAdmissionPolicy and its bindings will be generated for a Kyverno clust
 
 ## Implementation
 
-In this section, we will discuss how ValidatingAdmissionPolicy and its binding can be created from Kyverno policies.
+### Kyverno Policies
 
-### ClusterPolicy vs Policy
+#### ClusterPolicy vs Policy
 
 All Kyverno policies of kind `ClusterPolicy` can be converted into ValidatingAdmissionPolicies but not all policies of kind `Policy` can be converted into ValidatingAdmissionPolicies since they are cluster-scoped resources.
 
@@ -126,8 +128,8 @@ spec:
 However, namespaced kyverno policies should define a specific namespace name and since validating admission policy binding doesn't match namespaces by name we still can't generate validating admission policy and its binding from it. 
 There's a future plan in the [KEP](3. Provide a per-policy control whether Kyverno engine will handle CEL itself or let API server handles it.) to support namespaced policy binding, therefore namespaced kyverno policies might be used to generate VAPs as well.
 
-### Kyverno Policy Settings
-In Kyverno policies, some common settings can be applied to all rules. We will discuss the effect of setting these values on generating ValidatingAdmissionPolicies assuming that Kyverno policy contains multiple rules, one of them is `validate.CEL` subrule.
+#### Kyverno Policy Settings
+In Kyverno policies, some common settings can be applied to all rules. We will discuss the effect of setting these values on generating validating admission policies assuming that Kyverno policy contains multiple rules, one of them is `validate.CEL` subrule.
 
 1. `applyRules`: It must be unset since generating ValidatingAdmissionPolicies is limited to writing a Kyverno policy with one `validate.cel` rule.
 
@@ -178,9 +180,9 @@ In Kyverno policies, some common settings can be applied to all rules. We will d
 
 9. `webhookTimeoutSeconds`: No effect on ValidatingAdmissionPolicy generation.
 
-### Match/Exclude Resources
+#### Match/Exclude Resources
+- In validating admission policies, a request must match _all_ Constraints in `spec.matchConstraints` to be validated aganist the policy whereas `spec.matchConstraints.resourceRules` describes what operations on what resources/subresources the ValidatingAdmissionPolicy matches. The policy cares about an operation if it matches _any_ Rule. 
 
-- In ValidatingAdmissionPolicies, a request must match _all_ Constraints in `spec.matchConstraints` to be validated aganist the policy whereas `spec.matchConstraints.resourceRules` describes what operations on what resources/subresources the ValidatingAdmissionPolicy matches. The policy cares about an operation if it matches _any_ Rule. 
   In other words, `spec.matchConstraints` is AND-ed operation whereas `spec.matchConstraints.resourceRules` is OR-ed operation.
 
   Example:
@@ -773,10 +775,8 @@ In Kyverno policies, some common settings can be applied to all rules. We will d
     Note: The only difference in the provided manifest compared to the previous one is the existance of `exclude.any.resources[*].kinds`. Since exclusions in `excludeResourceRules` are combined with OR logic, we cannot simultaneously exclude both deployments and namespaces. Additionally, utilizing `namespaceSelector` in ValidatingAdmissionPolicies is not feasible because both matching and excluding resources would be constrained by the `namespaceSelector` using AND logic. Consequently, VAPs are unable to handle the scenario described above.
 
 
-
-### Validate Rules
-
-`validate.cel.expressions` can be converted into `spec.validations` in ValidatingAdmissionPolicy as follows:
+#### Validate Rules
+`validate.cel.expressions` can be converted into `spec.validations` in validating admission policy as follows:
 
 Kyverno policy:
 
@@ -799,9 +799,9 @@ spec:
       messageExpression: "'Deployment spec.replicas set to ' + string(object.spec.replicas)"
 ```
 
-### Audit Annotations
+#### Audit Annotations
+`validate.cel.auditAnnotations` can be converted into `spec.auditAnnotations` in validating admission policy as follows:
 
-`validate.cel.auditAnnotations` can be converted into `spec.auditAnnotations` in ValidatingAdmissionPolicy as follows:
 
 Kyverno policy:
 
@@ -822,7 +822,8 @@ spec:
       valueExpression: "'Deployment spec.replicas set to ' + string(object.spec.replicas)"
 ```
 
-### Parameter Resources
+
+#### Parameter Resources
 
 Kyverno policy:
 ```yaml=
@@ -857,10 +858,172 @@ spec:
     name: "replica-limit-test.example.com"
 ```
 
+### Policy Exceptions
+
+In Kyverno, we can use Policy Exceptions to allow certain resources to bypass specific policy and rule combinations. These exceptions can be utilized to exempt any resource from any type of Kyverno rule. In this section, we will discuss if we can generate a ValidatingAdmissionPolicy and its binding by using a Kyverno Policy and an Exception.
+
+Excluding resources in ValidatingAdmissionPolicy can be done via `spec.matchConstraints.excludeResourceRules`.
+
+Here is an example of ValidatingAdmissionPolicy which excludes deployments named `staging`:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "check-deployment-labels"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   ["apps"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["deployments"]
+    excludeResourceRules:
+    - apiGroups:     ["apps"]
+      apiVersions:   ["v1"]
+      operations:    ["CREATE", "UPDATE"]
+      resources:     ["deployments"]
+      resourceNames: ["staging"]
+  validations:
+    - expression: "'app' in object.metadata.labels"
+```
+
+Lets try generating a ValidatingAdmissionPolicy from a PolicyException.
+
+- Given an exception that excludes Deployments named `important-tool` in a namespace whose `environment` label is set to `staging`.
+
+  ```yaml
+  apiVersion: kyverno.io/v2beta1
+  kind: PolicyException
+  metadata:
+    name: delta-exception
+    namespace: delta
+  spec:
+    exceptions:
+    - policyName: disallow-host-namespaces
+      ruleNames:
+      - host-namespaces
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          names:
+          - important-tool
+          namespaceSelector:
+            matchLabels:
+              environment: staging
+  ```
+
+  The VAP has the ability to select/exclude resources via the namespaceSelector as follows:
+
+  ```yaml
+  apiVersion: admissionregistration.k8s.io/v1beta1
+  kind: ValidatingAdmissionPolicy
+  metadata:
+    name: "check-deployment-labels"
+  spec:
+    failurePolicy: Fail
+    matchConstraints:
+      resourceRules:
+      - apiGroups:   ["apps"]
+        apiVersions: ["v1"]
+        operations:  ["CREATE", "UPDATE"]
+        resources:   ["deployments"]
+      excludeResourceRules:
+      - apiGroups:     ["apps"]
+        apiVersions:   ["v1"]
+        operations:    ["CREATE", "UPDATE"]
+        resources:     ["deployments"]
+        resourceNames: ["important-tool"]
+      namespaceSelector:
+        matchLabels:
+          environment: staging
+    validations:
+      - expression: "'app' in object.metadata.labels"
+  ```
+
+  However, using a `namespaceSelector` will be applied for both matching and excluding deployemnts. The above VAP matches all deployments whose namespace labels set to `environment: staging`, and it also excludes all deployments named `important-tool` whose namespace labels set to `environment: staging`. It means that matching/excluding resources is done in the same namespace. There is no option to match deployments in all namespaces and exclude some in a specific namespace.
+
+  Another solution is to exclude resources via the ValidatingAdmissionPolicyBinding as follows:
+
+  ```yaml
+  apiVersion: admissionregistration.k8s.io/v1beta1
+  kind: ValidatingAdmissionPolicyBinding
+  metadata:
+    name: "check-deployment-labels-binding"
+  spec:
+    policyName: "check-deployment-labels"
+    validationActions: [Deny]
+    matchResources:
+      excludeResourceRules:
+      - apiGroups:     ["apps"]
+        apiVersions:   ["v1"]
+        operations:    ["CREATE", "UPDATE"]
+        resources:     ["deployments"]
+        resourceNames: ["important-tool"]
+      namespaceSelector:
+        matchLabels:
+          environment: staging
+  ```
+
+  However, `matchResources` in the binding is intersected with the VAP's `matchConstraints`, so only requests that are matched by the VAP can be selected by this. It means that the policy will match/exclude deployments in a namespace whose `environment` label is set to `staging`. Therefore, excluding resources in the VAP binding has the same issues as the VAP.
+
+- Given an exception that excludes Deployments named `important-tool` in the `delta` namespace.
+
+  ```yaml
+  apiVersion: kyverno.io/v2beta1
+  kind: PolicyException
+  metadata:
+    name: delta-exception
+    namespace: delta
+  spec:
+    exceptions:
+    - policyName: disallow-host-namespaces
+      ruleNames:
+      - host-namespaces
+    match:
+      any:
+      - resources:
+          kinds:
+          - Deployment
+          namespaces:
+          - delta
+          names:
+          - important-tool
+  ```
+  
+  Both VAPs and their binding can't specify namespaces by their names. Instead, they use the `namespaceSelector` to match resources whose namespace has a specific label. Therefore, the label `kubernetes.io/metadata.name: <namespace-name>` can be used in either VAP or its binding.
+
+  ```yaml
+  apiVersion: admissionregistration.k8s.io/v1beta1
+  kind: ValidatingAdmissionPolicy
+  metadata:
+    name: "check-deployment-labels"
+  spec:
+    failurePolicy: Fail
+    matchConstraints:
+      excludeResourceRules:
+      - apiGroups:     ["apps"]
+        apiVersions:   ["v1"]
+        operations:    ["CREATE", "UPDATE"]
+        resources:     ["deployments"]
+        resourceNames: ["important-tool"]
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: delta
+  ```
+
+  However, the use of `namespaceSelector` limits resource matching to the same namespace as the exclusion.
+
+- An exception that matches resources based on annotations, subjects, roles, or clusterRoles cannot be converted to VAPs.
+
+In conclusion, exceptions provide the flexibility to exclude resources that VAPs lack, making it impossible to generate a VAP from an exception. As a result, if an exception is created for a Kyverno policy that uses `validate.cel` subrule, the Kyverno engine will handle the resource validation itself instead of generating the corresponding VAPs.
+
 ## Next Steps
 
 1. Generate ValidatingAdmissionPolicies for multiple CEL subrules. 
 2. Generate ValidatingAdmissionPolicies from namespaced kyverno policies if the namespaced policy binding is introduced. For more info, check the future plans in the [KEP](https://github.com/kubernetes/enhancements/tree/master/keps/sig-api-machinery/3488-cel-admission-control#namespace-scoped-policy-binding).
 3. Support auto-gen CEL rules.
 4. Provide a per-policy control whether Kyverno engine will handle CEL itself or let API server handles it.
-5. Support writting policy exceptions to kyverno policies that are used to generate ValidatingAdmissionPolicies. 
