@@ -87,12 +87,13 @@ spec:
 
 ### Mutate Existing
 
-In order to mutate existing resources, a `targets` object is added to custom existing resources:
+The above examples demonstrate mutating resources via admission review process. The following attributes can be configured to enable mutation of existing resources.
 
-* `targets.matchConstraints`: required, selects existing resources to mutate based on GVR, `namespaceSelector`, `objectSelector`, etc.
-* `targets.matchConditions`: optional, filters target via CEL-based conditions.
+* `spec.targetMatchConstraints`: optional, selects existing resources to mutate based on GVR, `namespaceSelector`, `objectSelector`, etc.
+* `spec.evaluation.mutateExisting`: optional, enables mutation of existing resources. Default is `false`. When `spec.targetMatchConstraints` is not defined, Kyverno mutates existing resources matched in `spec.matchConstraints`.
+* `spec.conditions`: optional, filters target resources via CEL-based conditions.
 
-By default `spec.mutateExistingOnPolicyUpdate` is disabled, set it to `true` to mutate existing resources based on policy events.
+For example, the following policy mutates both existing configmaps and incoming configmaps with `CREATE` operation.
 
 ```yaml
 apiVersion: policies.kyverno.io/v1alpha1
@@ -100,7 +101,35 @@ kind: MutatingPolicy
 metadata:
   name: add-label-to-existing-secret
 spec:
-  mutateExistingOnPolicyUpdate: true
+  # enables mutate existing feature
+  evaluation:
+    mutateExisting: true
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   [""]
+      apiVersions: [v1]
+      operations:  [CREATE]
+      resources:   ["configmaps"]
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch: 
+        expression: >-
+          [
+            JSONPatch{
+              op: "add", path: "/metadata/labels",
+              value: {foo: bar}
+            }
+          ] 
+```
+
+This example defines a different target resource to be mutated, secrets. All existing secrets will be mutated when a new configmap is created.
+
+```yaml
+apiVersion: policies.kyverno.io/v1alpha1
+kind: MutatingPolicy
+metadata:
+  name: add-label-to-existing-secret
+spec:
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -128,7 +157,9 @@ spec:
           ] 
 ```
 
-The built-in variable `target` is supported to reference the target object. For example, the variable `target` is used below to filter secret's namespace via `targets.matchConditions`, and to reference `.spec` object of the secret.
+A `spec.conditions` field is supported for CEL-based conditional selections. A built-in variable `target` is supported to reference the target resource object. 
+
+For example, the variable `target` is used below to filter secret's namespace via `conditions`, and to reference `.spec` object of the secret.
 
 ```yaml
   targetsMatchConstraints:
@@ -136,7 +167,7 @@ The built-in variable `target` is supported to reference the target object. For 
     - apiGroups:   [""]
       apiVersions: [v1]
       resources:   ["secrets"]
-  targetMatchConditions:
+  conditions:
   - name: "skip kube-system namespace"
     expression: >-
       target.metadata.namespace != "kube-system"
