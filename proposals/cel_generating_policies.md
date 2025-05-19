@@ -400,3 +400,145 @@ The following table describes the behavior of deletion and modification events o
 | **Modify Source**      | Downstream synced     | Downstream unmodified |
 | **Modify Trigger**     | Downstream deleted    | None                  |
 
+# Implementation
+
+## Implementation Details of `generate` Rules
+
+This sections explains how UpdateRequests (URs) are created and consumed by the background controller to manage downstream resources.
+
+Both the trigger and downstream resources are added to the validating webhook rules. Then, the admission controller will create an UpdateRequest (UR). The UR will contain the following information:
+
+```yaml
+apiVersion: kyverno.io/v2
+kind: UpdateRequest
+metadata:
+  generateName: ur-
+  labels:
+    generate.kyverno.io/policy-name: cpol-sync-clone
+  ...
+spec:
+  context:
+    admissionRequestInfo:
+      admissionRequest:
+        operation: CREATE
+        kind:
+          kind: Namespace
+          version: v1
+        object:
+          metadata:
+            name: ns-4
+  policy: cpol-sync-clone
+  requestType: generate
+  deleteDownstream: false
+  ruleContext:
+  - rule: clone-secret
+    trigger:
+      kind: Namespace
+      name: ns-4
+status:
+  state: Pending
+```
+
+These UpdateRequest resources are then consumed by the background controller, which is responsible for generating or deleting downstream resources accordingly.
+
+### When Are UpdateRequests Created?
+
+The admission controller generates UpdateRequest (UR) resources under several conditions:
+
+1. **Trigger Creation or Update**
+When a trigger resource is created and matches a generate rule, Kyverno creates a UR to generate the corresponding downstream resource.
+
+2. **Trigger Deletion**
+If a trigger is deleted, or no longer matches the rule, and the `synchronize` field is set to true, Kyverno creates a UR to delete the downstream resource.
+
+3. **Generate on DELETE Operation**
+If the generate rule is configured to act on the DELETE operation of the trigger resource, Kyverno creates a UR on trigger deletion.
+
+4. **Cloned Source Changes or Downstream Changes**
+When the cloned source resource changes, or if the downstream resource is modified, and the `synchronize` field is set to true Kyverno creates a UR to update the downstream resource.
+
+    **In case the cloned source changes:**
+
+    a. First, we fetch the downstream resources that have the following labels:
+
+    ```
+    generate.kyverno.io/source-group: ""
+    generate.kyverno.io/source-kind: Secret
+    generate.kyverno.io/source-namespace: default
+    generate.kyverno.io/source-uid: b76c7fb3-7de5-4803-aecc-c1dffd3c4936
+    generate.kyverno.io/source-version: v1
+    ```
+
+    b. Then, from the downstream resource, we can get information about the policy name, the rule name and the trigger from the following labels:
+
+    ```
+    generate.kyverno.io/policy-name: cpol-sync-clone
+    generate.kyverno.io/policy-namespace: ""
+    generate.kyverno.io/rule-name: clone-secret
+    generate.kyverno.io/trigger-group: ""
+    generate.kyverno.io/trigger-kind: Namespace
+    generate.kyverno.io/trigger-namespace: ""
+    generate.kyverno.io/trigger-uid: 130f5def-4c75-475d-8be5-5514f25ce508
+    generate.kyverno.io/trigger-version: v1
+    ```
+
+    c. Finally, we can create a UR to update the downstream resource.
+
+    **In case the downstream resource is modified:**
+
+    a. We get the policy name, rule name and trigger from the labels:
+
+    ```
+    generate.kyverno.io/policy-name: cpol-sync-clone
+    generate.kyverno.io/policy-namespace: ""
+    generate.kyverno.io/rule-name: clone-secret
+    generate.kyverno.io/trigger-group: ""
+    generate.kyverno.io/trigger-kind: Namespace
+    generate.kyverno.io/trigger-namespace: ""
+    generate.kyverno.io/trigger-uid: 130f5def-4c75-475d-8be5-5514f25ce508
+    generate.kyverno.io/trigger-version: v1
+    ```
+
+    b. Then, we can create a UR to revert the downstream resource.
+
+In addition, URs are generated on policy events via the policy controller. The policy controller is responsible for creating URs when a policy is created, updated, or deleted. This ensures that the downstream resources are always in sync with the policy.
+
+### Policy Controller
+
+The policy controller, part of the background controller, generates URs during policy events (e.g., policy/rule updates, deletions) and also responsible for the `generateExisting` field. This field determines whether to generate downstream resources for existing trigger resources when the policy is created.
+
+1. **When the Policy Definition Changes**
+
+    If the generate rule embeds resource data (e.g., in a `data` field) and `synchronize` is enabled, Kyverno must sync downstreams by generating new URs.
+
+    - First, we fetch the downstream resources that have the following labels:
+
+    ```
+    generate.kyverno.io/policy-name: zk-kafka-address
+    generate.kyverno.io/policy-namespace: ""
+    generate.kyverno.io/rule-name: k-kafka-address
+    app.kubernetes.io/managed-by: kyverno
+    ```
+
+    - Then, we extract trigger metadata from downstream labels and creates URs accordingly.
+
+2. **When a Policy or Rule is Deleted (with `synchronize: true`)**
+
+    Kyverno must clean up downstreams when:
+
+    - A policy is deleted.
+    - A rule within the policy is removed.
+
+    In such cases, Kyverno fetches downstreams using the same labels as above. It then extracts trigger information and creates a UR to delete the downstream resource.
+
+3. **For `generateExisting` Feature**
+
+    When a generate rule uses `generateExisting`, the policy controller:
+
+    -  Lists all existing trigger resources.
+
+    - Creates URs to generate downstreams for each applicable trigger.
+  
+
+## Implementation Details of the new `GeneratingPolicy` CRD
+
