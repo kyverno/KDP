@@ -10,13 +10,20 @@
 - [Definitions](#definitions)
 - [Motivation](#motivation)
 - [Proposal](#proposal)
+- [Data Source](#data-source)
+- [Clone Source](#clone-source)
+  - [`forEach` with Data Source](#foreach-with-data-source)
+  - [`forEach` with Clone Source](#foreach-with-clone-source)
+  - [`forEach` with CloneList Source](#foreach-with-clonelist-source)
 - [Implementation](#implementation)
-- [Migration (OPTIONAL)](#migration-optional)
-- [Drawbacks](#drawbacks)
-- [Alternatives](#alternatives)
-- [Prior Art](#prior-art)
-- [Unresolved Questions](#unresolved-questions)
-- [CRD Changes (OPTIONAL)](#crd-changes-optional)
+  - [Implementation Details of `generate` Rules](#implementation-details-of-generate-rules)
+    - [When Are UpdateRequests Created?](#when-are-updaterequests-created)
+    - [Policy Controller](#policy-controller)
+  - [Implementation Details of the new `GeneratingPolicy` CRD](#implementation-details-of-the-new-generatingpolicy-crd)
+    - [Trigger Changes](#trigger-changes)
+    - [Policy Changes](#policy-changes)
+    - [Cloned Source & Downstream Changes](#cloned-source--downstream-changes)
+      - [Challenge: Discovering GVRs for Watchers](#challenge-discovering-gvrs-for-watchers)
 
 # Overview
 [overview]: #overview
@@ -70,16 +77,22 @@ spec:
       expression: "object.metadata.name"
     - name: configmap
       expression: >-
-        {
-          "kind": dyn("ConfigMap"),
-          "apiVersion": dyn("v1"),
-          "data": dyn({
-            "zk-kafka-address": "192.168.10.10:2181,192.168.10.11:2181,192.168.10.12:2181"
-          })
-        }
+        [
+          {
+            "kind": dyn("ConfigMap"),
+            "apiVersion": dyn("v1"),
+            "metadata": dyn({
+              "name": "zk-kafka-address",
+              "namespace": string(variables.nsName),
+            }),
+            "data": dyn({
+              "KAFKA_ADDRESS": "192.168.10.13:9092,192.168.10.14:9092,192.168.10.15:9092",
+              "ZK_ADDRESS": "192.168.10.10:2181,192.168.10.11:2181,192.168.10.12:2181"
+            })
+          }
+        ]
   generate:
-    - expression: generator.ApplyAll(variables.nsName, variables.configmap)
-      name: generate-configmap
+    - expression: generator.Apply(variables.nsName, variables.configmap)
 ```
 
 ### Synchronization Behavior
@@ -105,7 +118,7 @@ In case of cloning an existing resource, the GeneratingPolicy CRD will look like
 apiVersion: policies.kyverno.io/v1alpha1
 kind: GeneratingPolicy
 metadata:
-  name: zk-kafka-address
+  name: generate-secret
 spec:
   evaluation:
     synchronize: true
@@ -117,17 +130,13 @@ spec:
       apiVersions: ["v1"]
       operations:  ["CREATE", "UPDATE"]
       resources:   ["namespaces"]
-  matchConditions:
-    - expression: "object.metadata.labels['color'] == 'red'"
-      name: "red-label"
   variables:
     - name: nsName
       expression: "object.metadata.name"
     - name: source
-      expression: resource.Get("v1", "configmaps", "default", "allowed-registry")
+      expression: resource.Get("v1", "secrets", "default", "regcred")
   generate:
-    - expression: generator.ApplyAll(variables.nsName, variables.source)
-      name: generate-configmap
+    - expression: generator.Apply(variables.nsName, [variables.source])
 ```
 
 In case of cloning multiple resources, the GeneratingPolicy CRD will look like this:
@@ -136,7 +145,7 @@ In case of cloning multiple resources, the GeneratingPolicy CRD will look like t
 apiVersion: policies.kyverno.io/v1alpha1
 kind: GeneratingPolicy
 metadata:
-  name: zk-kafka-address
+  name: generate-secrets
 spec:
   evaluation:
     synchronize: true
@@ -151,13 +160,37 @@ spec:
   variables:
     - name: nsName
       expression: "object.metadata.name"
-    - name: cmList
-      expression: resource.List("v1", "configmaps", "default").items
-    - name: sourceList
-      expression: variables.cmList.filter(source, source.metadata.labels['allowedToBeCloned'] == 'true')
+    - name: sources
+      expression: resource.List("v1", "secrets", "default")
   generate:
-    - expression: generator.ApplyAll(variables.nsName, variables.sourceList)
-      name: generate-configmaps
+    - expression: generator.Apply(variables.nsName, [variables.sources])
+```
+
+```yaml
+apiVersion: policies.kyverno.io/v1alpha1
+kind: GeneratingPolicy
+metadata:
+  name: generate-secrets-and-networkpolicies
+spec:
+  evaluation:
+    synchronize: true
+    generateExisting: false
+    orphanDownstreamOnPolicyDelete: false
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   [""]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["namespaces"]
+  variables:
+    - name: nsName
+      expression: "object.metadata.name"
+    - name: clonedSecrets
+      expression: resource.List("v1", "secrets", "default")
+    - name: clonedNetworkPolicies
+      expression: resource.List("networking.k8s.io/v1", "networkpolicies", "default")
+  generate:
+    - expression: generator.Apply(variables.nsName, [variables.clonedSecrets, variables.clonedNetworkPolicies])
 ```
 
 The clone source is fetched using CEL expressions, either through `resource.Get()` or `resource.List()`.
@@ -541,4 +574,99 @@ The policy controller, part of the background controller, generates URs during p
   
 
 ## Implementation Details of the new `GeneratingPolicy` CRD
+
+To enable synchronization, the `synchronize` field must be set to true. When enabled, any change to:
+
+- the trigger resource (specified via `matchConstraints`),
+- the GeneratingPolicy itself, or
+- the cloned source resource,
+- the downstream resource
+
+will result in the regeneration or deletion of the corresponding downstream resources.
+
+### Trigger Changes
+
+For the trigger resource, it is added to the validating webhook rules. The admission controller will then create an UpdateRequest (UR) to generate the downstream resource(s).
+
+### Policy Changes
+
+For the GeneratingPolicy itself, the PolicyController will be responsible for syncing the downstream resources with the policy changes. It will watch for changes to the GeneratingPolicy CRD and create URs accordingly. The URs will contain the necessary information to update/delete the downstream resources based on the policy changes. For example, if a GeneratingPolicy is updated to change the data source, the PolicyController will create URs to update the downstream resources accordingly. Similarly, if a GeneratingPolicy is deleted, the PolicyController will create URs to delete the downstream resources.
+
+### Cloned Source & Downstream Changes
+
+1. Cloned Source Changes:
+
+    If a policy clones from a source, modifications to that source must be detected.
+
+    Dynamic watchers will be used to monitor the source GVR and trigger a regeneration if:
+
+    - the source is modified → update the downstream resource.
+
+    - the source is deleted → delete the downstream resource
+
+2. Downstream Changes:
+
+    If a downstream resource is externally modified, we need to revert it back to the policy-defined state.
+
+    To handle this, we will also use dynamic watchers to monitor the downstream resource. If the downstream resource is modified, the watcher will trigger an update to revert it back to the state defined in the GeneratingPolicy.
+
+#### Challenge: Discovering GVRs for Watchers
+
+To watch for cloned or downstream resource changes, we must know the GroupVersionResource (GVR) of the involved resources. However, since both the source and the downstream resources are defined via CEL expressions, their GVRs are not known at the policy creation time.
+
+There are three main approaches to solve this:
+
+1. Evaluate CEL expressions when policy is created:
+
+    CEL expressions will be evaluated immediately when a GeneratingPolicy is created or updated. However, this raises a challenge: how can we perform a dry-run evaluation of these expressions without actually creating any resources? In particular, expressions like `object.metadata.name` rely on the presence of an incoming resource (object), which does not exist at the time of policy creation. We need to determine how to safely evaluate such expressions in the absence of runtime context.
+
+2. Explicit GVR Definition in Policy: 
+
+    We can add a GVR field in the GeneratingPolicy definition, which will be set to the GVR of the cloned source resource and the downstream resource. It will help us bypass evaluating CEL just to know which resources to watch.
+
+    ```yaml
+    apiVersion: policies.kyverno.io/v1alpha1
+    kind: GeneratingPolicy
+    metadata:
+      name: generate-secrets-and-networkpolicies
+    spec:
+      evaluation:
+        synchronize: true
+        generateExisting: false
+        orphanDownstreamOnPolicyDelete: false
+      matchConstraints:
+        resourceRules:
+        - apiGroups:   [""]
+          apiVersions: ["v1"]
+          operations:  ["CREATE", "UPDATE"]
+          resources:   ["namespaces"]
+      generatedResources:
+        - apiGroups: [""]
+          apiVersions: ["v1"]
+          kind: "Secret"
+        - apiGroups: ["networking.k8s.io"]
+          apiVersions: ["v1"]
+          kind: "NetworkPolicy"
+      variables:
+        - name: nsName
+          expression: "object.metadata.name"
+        - name: clonedSecrets
+          expression: resource.List("v1", "secrets", "default")
+        - name: clonedNetworkPolicies
+          expression: resource.List("networking.k8s.io/v1", "networkpolicies", "default")
+      generate:
+        - expression: generator.Apply(variables.nsName, [variables.clonedSecrets, variables.clonedNetworkPolicies])
+    ```
+
+3. Lazy Evaluation on First Execution: 
+
+    a. CEL expressions will be evaluated lazily during the first invocation of `generator.Apply(...)`.
+
+    b. On first successful execution:
+
+      1. Extract the GVRs of cloned and generated resources from the result.
+
+      2. Register watchers dynamically.
+
+      3. Maintain a cache of registered GVRs to prevent duplication.
 
