@@ -670,3 +670,90 @@ There are three main approaches to solve this:
 
       3. Maintain a cache of registered GVRs to prevent duplication.
 
+### Lazy Evaluation on First Execution
+
+Workflow:
+
+1. A user creates a GeneratingPolicy.
+
+2. A trigger resource is created that matches the GeneratingPolicy.
+
+3. An UpdateRequest (UR) is created to generate the downstream resource.
+
+4. The background controller processes the UR and evaluates the CEL expressions.
+
+5. During the first execution of `generator.Apply(...)`, we call `watchManager.SyncWatchers()`, passing the policy name and the list of the generated resources.
+
+    ```go
+    type Resource struct {
+      Name      string
+      Namespace string
+      Hash      string
+      Labels    map[string]string
+      Data      *unstructured.Unstructured
+    }
+
+    type watcher struct {
+      watcher       watch.Interface
+      metadataCache map[types.UID]Resource
+    }
+
+    type WatchManager struct {
+      // clients
+      client dclient.Interface
+
+      // mapper
+      restMapper meta.RESTMapper
+
+      // dynamicWatchers refrences the GVR of the generated resources to the corresponding watcher.
+      dynamicWatchers map[schema.GroupVersionResource]*watcher
+      // policyRefs maps the policy name to the set of generated resources.
+      policyRefs map[string][]schema.GroupVersionResource
+      // refCount tracks the number of policies that generates the same resource.
+      refCount map[schema.GroupVersionResource]int
+
+      log  logr.Logger
+      lock sync.Mutex
+    }
+    ```
+
+    - The `SyncWatchers()` does the following:
+    
+        a. For each new GVR, it starts a dynamic watcher. To be efficient, it uses a reference counter (refCount). If two policies both generate ConfigMaps, only one watcher for ConfigMaps is created.
+
+        b. It compares the new set of GVRs with the old set for that policy. If a policy is updated to no longer generate a certain resource kind, the reference counter for that GVR is decremented. If the count reaches zero, the corresponding watcher is stopped.
+
+        c. It populates an internal `metadataCache` with details (name, namespace, hash) of the downstream resources.
+
+    - Once a watcher is running for a resource kind (e.g., ConfigMap), it receives events for all resources of that kind cluster-wide.
+
+    - On UPDATE event:
+
+        a. The `handleUpdate` function checks if the updated resource is one of the downstream resources it manages (by looking it up in its `metadataCache`).
+        
+        b. If it is a downstream resource, it calculates the hash of the incoming resource and compares it to the hash stored in the cache.
+        
+        c. If the hashes differ, it means a user has modified the resource. The WatchManager then reverts the change by re-applying the original, desired state from its cache. This is done by getting the original resource from the cache.
+
+        d. If it is a cloned source resource, it will trigger the regeneration of the downstream resources. This is done by listing the downstream resources that have the source UID label set to the UID of the cloned source resource. Then, we update the downstream resources with the new state of the cloned source resource and update it in the metadata cache too.
+
+    - On DELETE event:
+
+        a. The `handleDelete` function checks if the deleted resource is one of the downstream resources it manages. (by checking if it has the label `app.kubernetes.io/managed-by: kyverno`)
+        
+        b. If it is a downstream resource, then we get the data from the cache, and create it.
+
+        c. If it is a cloned source resource, we will delete the downstream resources that have the source UID label set to the UID of the cloned source resource.
+
+Synchronization on Policy Events:
+
+- When a GeneratingPolicy is created, the WatchManager will register watchers for the GVRs of the generated resources when a trigger resource is created.
+
+- When a GeneratingPolicy is updated:
+  - If the policy is updated to disable synchronization, the WatchManager will stop the watchers for the GVRs of the generated resources.
+  - If the policy is modified to update the generated resources, we will create an UpdateRequest (UR) to trigger the evaluation of the policy and update the downstream resources.
+
+- When a GeneratingPolicy is deleted, the WatchManager will stop the watchers for the GVRs of the generated resources. This is done by calling `RemoveWatchersForPolicy(name)` which will decrement the reference count for each GVR. If the count reaches zero, the watcher is stopped. It will also delete the downstream resources that have the policy name label set to the name of this policy.
+
+The GeneratingPolicy controller will also be responsible for the generateExisting feature. When a GeneratingPolicy is created with `generateExisting: true`, the controller will list all existing trigger resources and create URs to generate the downstream resources for each trigger.
+
