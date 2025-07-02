@@ -60,9 +60,12 @@ metadata:
   name: zk-kafka-address
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -121,9 +124,12 @@ metadata:
   name: generate-secret
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -148,9 +154,12 @@ metadata:
   name: generate-secrets
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -173,9 +182,12 @@ metadata:
   name: generate-secrets-and-networkpolicies
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -217,9 +229,12 @@ metadata:
   name: foreach-generate-data
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -227,32 +242,28 @@ spec:
       operations:  ["CREATE", "UPDATE"]
       resources:   ["configmaps"]
   variables:
+    # nsList is ["ns1", "ns2", "ns3"]
     - name: nsList
       expression: "object.data.namespaces.split(',')"
-    - name: filteredNs
-      expression: "variables.nsList.filter(ns, ['foreach-ns-1', 'foreach-ns-2'].exists(v, v == ns))"
-    - name: targetResources
+    # indexed is [0, 1, 2]
+    - name: indexed
       expression: >
-        variables.filteredNs.map(ns,
-          {
-            'apiVersion': dyn('networking.k8s.io/v1'),
-            'kind': dyn('NetworkPolicy'),
-            'metadata': {
-              'name': 'my-networkpolicy-' + string(ns),
-              'namespace': string(ns),
-            },
-            'spec': {
-              'podSelector': {},
-              'policyTypes': ['Ingress', 'Egress']
-            }
-          }
-        )
+        variables.nsList.map(ns, variables.nsList.indexOf(ns))
   generate:
-    - name: generate-network-policies
-      expression: >
-        variables.filteredNs.map(ns,
-          generator.ApplyAll(ns, variables.targetResources)
-        )
+    - expression: >
+        variables.indexed.all(i, generator.Apply(variables.nsList[i], [
+          {
+            "kind": dyn("NetworkPolicy"),
+            "apiVersion": dyn("networking.k8s.io/v1"),
+            "metadata": dyn({
+              "name": "np-" + string(i),
+            }),
+            "spec": dyn({
+              "podSelector": dyn({}),
+              "policyTypes": dyn(["Ingress", "Egress"])
+            })
+          }]
+        ))
 ```
 
 ### `forEach` with Clone Source
@@ -266,9 +277,12 @@ metadata:
   name: foreach-clone
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -279,29 +293,10 @@ spec:
     - name: nsList
       expression: "object.data.namespaces.split(',')"
     - name: source
-      expression: resource.Get("v1", "secrets", "default", "source-secret")
-    - name: targets
-      expression: >
-        variables.nsList.map(ns,
-          {
-            "apiVersion": variables.source.apiVersion,
-            "kind": variables.source.kind,
-            "metadata": {
-              "name": variables.source.metadata.name,
-              "namespace": ns,
-              "labels": variables.source.metadata.labels,
-              "annotations": variables.source.metadata.annotations
-            },
-            "data": variables.source.data,
-            "type": variables.source.type
-          }
-        )
+      expression: resource.Get("v1", "secrets", "default", "foreach-clone")
   generate:
-    - name: foreach-clone-secrets
-      expression: >
-        variables.nsList.map(ns,
-          generator.ApplyAll(ns, variables.targets)
-        )
+    - expression: >
+        variables.nsList.all(ns, generator.Apply(ns, [variables.source]))
 ```
 
 An alternative approach is to introduce a new function, `object.setField(key, value)`, which will return a new object with the specified field path overridden.
@@ -313,9 +308,12 @@ metadata:
   name: foreach-clone
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
       - apiGroups:   [""]
@@ -350,9 +348,12 @@ metadata:
   name: foreach-clone-list
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -362,18 +363,11 @@ spec:
   variables:
     - name: nsList
       expression: "object.data.namespaces.split(',')"
-    - name: secretList
-      expression: resource.List("v1", "secrets", "default").items
-    - name: sourceList
-      expression: variables.secretList.filter(source, source.metadata.labels['allowedToBeCloned'] == 'true')
+    - name: sources
+      expression: resource.List("v1", "secrets", "default")
   generate:
-    - name: foreach-clone-multiple-secrets
-      expression: >
-        variables.nsList.map(ns,
-          variables.sourceList.map(secret,
-            generator.ApplyAll(ns, secret)
-          )
-        )
+    - expression: >
+        variables.nsList.all(ns, generator.Apply(ns, [variables.sources]))
 ```
 
 An alternative approach is to make use of `object.setField(key, value)` to set the namespace for each secret and use `generator.ApplyAll()` to generate the secrets.
@@ -385,9 +379,12 @@ metadata:
   name: foreach-clone-list
 spec:
   evaluation:
-    synchronize: true
-    generateExisting: false
-    orphanDownstreamOnPolicyDelete: false
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
   matchConstraints:
     resourceRules:
     - apiGroups:   [""]
@@ -631,9 +628,12 @@ There are three main approaches to solve this:
       name: generate-secrets-and-networkpolicies
     spec:
       evaluation:
-        synchronize: true
-        generateExisting: false
-        orphanDownstreamOnPolicyDelete: false
+        synchronize:
+          enabled: true
+        generateExisting:
+          enabled: false
+        orphanDownstreamOnPolicyDelete:
+          enabled: false
       matchConstraints:
         resourceRules:
         - apiGroups:   [""]
