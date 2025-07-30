@@ -18,7 +18,7 @@ This proposal outlines the design for a fine-grained exception for Kyverno's CEL
 
 The goals of this proposal are to:
 
-1. **Excluding Specific Images:** A straightforward method to exempt resources from policy enforcement based on their container image reference.
+1. **Excluding Specific Images:** A straightforward method to exempt resources from policy enforcement based on their container image reference. This is important because other identifiers like resource names or labels can be easily spoofed by a user to bypass a policy, an image reference is a strong, trustworthy identifier that points directly to the specific software code being executed. By using the image references in exceptions, we ensure that only the intended, verified software can bypass a rule, making the entire exception mechanism more secure and reliable.
 
 2. **Allowing Specific Values:** A powerful and generic mechanism to allow a resource to contain a specific configuration value (e.g., a hostPath volume, a privileged security context) that a policy would normally deny.
 
@@ -38,8 +38,8 @@ The main idea is to use the existing `PolicyException` resource to gather except
 
 If one or more PolicyException resources match an incoming resource for a given policy, Kyverno will aggregate their specifications and populate two new context variables:
 
-1. `kyverno.excludedImages`: A list of image strings to be exempted.
-2. `kyverno.allowedValues`: A structured map containing permissible values for specific fields in the resource.
+1. `exceptions.allowedImages`: A list of image strings to be exempted.
+2. `exceptions.allowedValues`: A structured map containing permissible values for specific fields in the resource.
 
 If no exception applies, these variables will be empty (empty list and empty map, respectively), ensuring the policy functions normally without any modification.
 
@@ -151,7 +151,7 @@ spec:
   - nginx:latest
 ```
 
-In order to use the excluded images from the exception in the policy, Kyverno will introduce a new CEL object `kyverno.excludedImages` that will be available in the CEL expressions. This object will contain the list of images specified in the PolicyException resource. If no exception exists, `kyverno.excludedImages` is an empty list, and the policy functions normally.
+In order to use the excluded images from the exception in the policy, Kyverno will introduce a new CEL object `exceptions.allowedImages` that will be available in the CEL expressions. This object will contain the list of images specified in the PolicyException resource. If no exception exists, `exceptions.allowedImages` is an empty list, and the policy functions normally.
 
 The policy can then be modified to use this new object in the validation expressions as follows
 
@@ -170,7 +170,7 @@ spec:
   validations:
     - expression: >
         object.spec.containers.all(container,
-          container.image in kyverno.excludedImages ||
+          container.image in exceptions.allowedImages ||
           (
             has(container.securityContext) &&
             has(container.securityContext.allowPrivilegeEscalation) &&
@@ -239,7 +239,7 @@ validations:
   - expression: >-
       !has(object.spec.volumes) ||
       object.spec.volumes.all(vol,
-        kyverno.allowedValues.volumeTypes.exists(type, has(vol[type])) ||
+        exceptions.allowedValues.volumeTypes.exists(type, has(vol[type])) ||
         has(vol.configMap) ||
         has(vol.csi) ||
         has(vol.downwardAPI) ||
@@ -251,7 +251,7 @@ validations:
       )
 ```
 
-The new CEL object `kyverno.allowedValues` will contain the allowed configuration values specified in the PolicyException resource. If no exception exists, `kyverno.allowedValues` is an empty map, and the policy functions normally. It is a map of allowed values for each field, allowing for flexible and specific exceptions.
+The new CEL object `exceptions.allowedValues` will contain the allowed configuration values specified in the PolicyException resource. If no exception exists, `exceptions.allowedValues` is an empty map, and the policy functions normally. It is a map of allowed values for each field, allowing for flexible and specific exceptions.
 
 ## Combining Image Exclusions with Allowed Values
 
@@ -300,7 +300,7 @@ spec:
       - Unconfined
 ```
 
-The modified policy will then use both `kyverno.allowedValues` and `kyverno.excludedImages` in order to allow the `Unconfined` seccomp profile type only for the `nginx` image:
+The modified policy will then use both `exceptions.allowedValues` and `exceptions.allowedImages` in order to allow the `Unconfined` seccomp profile type only for the `nginx` image:
 
 ```yaml
 validations:
@@ -309,8 +309,8 @@ validations:
         !has(container.securityContext) ||
         !has(container.securityContext.seccompProfile) ||
         !has(container.securityContext.seccompProfile.type) ||
-        (container.image in kyverno.excludedImages && 
-        container.securityContext.seccompProfile.type in kyverno.allowedValues.seccompProfileType) ||
+        (container.image in exceptions.allowedImages && 
+        container.securityContext.seccompProfile.type in exceptions.allowedValues.seccompProfileType) ||
         container.securityContext.seccompProfile.type == 'RuntimeDefault' ||
         container.securityContext.seccompProfile.type == 'Localhost'
       )
