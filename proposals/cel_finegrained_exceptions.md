@@ -18,7 +18,7 @@ This proposal outlines the design for a fine-grained exception for Kyverno's CEL
 
 The goals of this proposal are to:
 
-1. **Excluding Specific Images:** A straightforward method to exempt resources from policy enforcement based on their container image names.
+1. **Excluding Specific Images:** A straightforward method to exempt resources from policy enforcement based on their container image reference.
 
 2. **Allowing Specific Values:** A powerful and generic mechanism to allow a resource to contain a specific configuration value (e.g., a hostPath volume, a privileged security context) that a policy would normally deny.
 
